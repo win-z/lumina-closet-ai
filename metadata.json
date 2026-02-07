@@ -1,0 +1,7 @@
+{
+  "name": "Lumina Closet AI",
+  "description": "A smart personal wardrobe assistant featuring AI-powered styling, virtual try-on, and 3D body profiling.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

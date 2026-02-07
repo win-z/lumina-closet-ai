@@ -1,0 +1,367 @@
+
+import React, { useState, useEffect } from 'react';
+import { ViewState, ClothingItem, BodyProfile, DiaryEntry } from './types';
+import WardrobeGallery from './components/WardrobeGallery';
+import BodyProfileComponent from './components/BodyProfile';
+import Stylist from './components/Stylist';
+import Analytics from './components/Analytics';
+import Diary from './components/Diary';
+import { Shirt, User, Sparkles, BarChart2, BookHeart, Loader2, LogIn } from 'lucide-react';
+import { apiService, authApi, wardrobeApi } from './services/api';
+
+const DEFAULT_PROFILE: BodyProfile = {
+    name: '默认用户',
+    heightCm: 170,
+    weightKg: 60,
+    description: "等待完善档案...",
+    photoFront: undefined,
+    photoSide: undefined,
+    photoBack: undefined
+};
+
+const DEFAULT_WARDROBE: ClothingItem[] = [];
+
+const App: React.FC = () => {
+  const [view, setView] = useState<ViewState>('wardrobe');
+  const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+
+  // 用户数据状态
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    profile: BodyProfile;
+    wardrobe: ClothingItem[];
+    diary: DiaryEntry[];
+  } | null>(null);
+
+  // 登录表单状态
+  const [loginForm, setLoginForm] = useState({ email: '', password: '', username: '' });
+  const [isRegister, setIsRegister] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  // 初始化 - 检查是否已登录
+  useEffect(() => {
+    const init = async () => {
+      const token = apiService.getToken();
+      if (token) {
+        try {
+          const profile = await apiService.getProfile();
+          const userData = {
+            id: profile.account.id,
+            profile: profile.profile || DEFAULT_PROFILE,
+            wardrobe: [],
+            diary: []
+          };
+          setCurrentUser(userData);
+          setIsLoggedIn(true);
+
+          // 加载该用户的后端数据
+          await loadBackendDataForUser(userData.id);
+        } catch {
+          apiService.clearToken();
+        }
+      }
+      setLoading(false);
+    };
+    init();
+  }, []);
+
+  // 根据用户ID加载后端数据
+  const loadBackendDataForUser = async (userId: string) => {
+    try {
+      const wardrobeRes = await apiService.getWardrobe();
+      const diaryRes = await apiService.getDiary();
+
+      setCurrentUser(prev => prev && prev.id === userId ? {
+        ...prev,
+        wardrobe: Array.isArray(wardrobeRes) ? wardrobeRes : [],
+        diary: Array.isArray(diaryRes) ? diaryRes : []
+      } : prev);
+    } catch (e) {
+      console.error('加载用户数据失败:', e);
+    }
+  };
+
+  // 加载后端数据 (当前登录用户)
+  const loadBackendData = async () => {
+    if (!currentUser?.id) return;
+    await loadBackendDataForUser(currentUser.id);
+  };
+
+  // 登录处理
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+
+    try {
+      if (isRegister) {
+        await authApi.register(loginForm.email, loginForm.password, loginForm.username);
+        await authApi.login(loginForm.email, loginForm.password);
+      } else {
+        await authApi.login(loginForm.email, loginForm.password);
+      }
+
+      // 获取用户信息
+      const profile = await apiService.getProfile();
+      setCurrentUser({
+        id: profile.account.id,
+        profile: profile.profile || DEFAULT_PROFILE,
+        wardrobe: [],
+        diary: []
+      });
+
+      // 加载后端数据
+      await loadBackendData();
+
+      setIsLoggedIn(true);
+      setShowLogin(false);
+    } catch (e: any) {
+      setLoginError(e.message || '登录失败');
+    }
+  };
+
+  // 登出处理
+  const handleLogout = () => {
+    apiService.clearToken();
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    localStorage.removeItem('lumina_current_user_id');
+  };
+
+  // 更新衣橱
+  const setWardrobe = (items: ClothingItem[]) => {
+    setCurrentUser(prev => prev ? { ...prev, wardrobe: items } : null);
+  };
+
+  // 更新档案
+  const setProfile = (profile: BodyProfile) => {
+    setCurrentUser(prev => prev ? { ...prev, profile } : null);
+  };
+
+  // 更新日记
+  const setDiary = (entries: DiaryEntry[]) => {
+    setCurrentUser(prev => prev ? { ...prev, diary: entries } : null);
+  };
+
+  // 同步衣橱到后端（简化版本：直接同步整个列表）
+  const syncWardrobeToBackend = async (items: ClothingItem[]) => {
+    if (!isLoggedIn || !currentUser) return;
+    
+    try {
+      // 只同步本地id的数据到后端
+      const localItems = items.filter(item => item.id.startsWith('local_'));
+      
+      for (const item of localItems) {
+        try {
+          const { id, ...itemData } = item;
+          const newItem = await wardrobeApi.add(itemData);
+          // 更新本地ID为后端返回的ID
+          if (newItem && newItem.id) {
+            setCurrentUser(prev => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                wardrobe: prev.wardrobe.map(w => 
+                  w.id === item.id ? newItem : w
+                )
+              };
+            });
+          }
+        } catch (e) {
+          console.error('同步单件失败:', e);
+        }
+      }
+    } catch (e) {
+      console.error('同步衣橱失败:', e);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-rose-50 text-slate-600 gap-4">
+        <Loader2 className="animate-spin text-indigo-500" size={48} />
+        <div className="text-sm font-medium animate-pulse">正在初始化...</div>
+      </div>
+    );
+  }
+
+  // 未登录显示登录界面
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-slate-50 to-indigo-50 flex items-center justify-center p-4">
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-rose-500 to-indigo-500 bg-clip-text text-transparent">
+              Lumina Closet
+            </h1>
+            <p className="text-slate-500 mt-2">AI智能衣橱助手</p>
+          </div>
+
+          <h2 className="text-xl font-semibold text-slate-700 mb-4">
+            {isRegister ? '创建账户' : '登录账户'}
+          </h2>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            {isRegister && (
+              <input
+                type="text"
+                placeholder="用户名"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                value={loginForm.username}
+                onChange={e => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
+                required={isRegister}
+              />
+            )}
+            <input
+              type="email"
+              placeholder="邮箱"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+              value={loginForm.email}
+              onChange={e => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
+              required
+            />
+            <input
+              type="password"
+              placeholder="密码"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+              value={loginForm.password}
+              onChange={e => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+              required
+            />
+
+            {loginError && (
+              <div className="text-red-500 text-sm text-center">{loginError}</div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-gradient-to-r from-rose-500 to-indigo-500 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-indigo-200 transition-all"
+            >
+              {isRegister ? '注册' : '登录'}
+            </button>
+          </form>
+
+          <button
+            onClick={() => setIsRegister(!isRegister)}
+            className="w-full mt-4 text-slate-500 text-sm hover:text-indigo-500 transition-colors"
+          >
+            {isRegister ? '已有账户？去登录' : '没有账户？去注册'}
+          </button>
+
+          <button
+            onClick={() => {
+              setIsLoggedIn(true);
+              setCurrentUser({
+                id: 'local_user',
+                profile: DEFAULT_PROFILE,
+                wardrobe: [],
+                diary: []
+              });
+            }}
+            className="w-full mt-4 py-2 text-slate-400 text-sm hover:text-slate-600 transition-colors"
+          >
+            暂不登录，使用本地模式
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-slate-50 to-indigo-50 text-slate-900 font-sans selection:bg-rose-200">
+      <main className="max-w-md mx-auto min-h-screen bg-white/50 backdrop-blur-xl shadow-2xl overflow-hidden relative border-x border-white/40">
+
+        {/* 顶部用户信息 */}
+        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-r from-rose-500/10 to-indigo-500/10 flex justify-between items-center z-40">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 flex items-center justify-center text-white text-xs font-medium">
+              {currentUser?.profile.name?.[0] || 'U'}
+            </div>
+            <span className="text-sm font-medium text-slate-600">{currentUser?.profile.name || '用户'}</span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+            title="退出登录"
+          >
+            <LogIn size={18} className="rotate-180" />
+          </button>
+        </div>
+
+        {/* Views */}
+        <div className="animate-fade-in min-h-screen pt-16">
+          {view === 'wardrobe' && currentUser && (
+            <WardrobeGallery
+              items={currentUser.wardrobe}
+              setItems={(items) => {
+                const previousItems = currentUser.wardrobe;
+                setWardrobe(items);
+                if (isLoggedIn) {
+                  syncWardrobeToBackend(items);
+                }
+              }}
+            />
+          )}
+          {view === 'profile' && currentUser && (
+            <BodyProfileComponent
+              profile={currentUser.profile}
+              setProfile={(profile) => {
+                setProfile(profile);
+                if (isLoggedIn && profile) {
+                  apiService.updateProfile(profile as any);
+                }
+              }}
+            />
+          )}
+          {view === 'stylist' && currentUser && (
+            <Stylist
+              wardrobe={currentUser.wardrobe}
+              profile={currentUser.profile}
+              onSaveDiary={(entry) => {
+                setDiary([...currentUser.diary, entry]);
+                if (isLoggedIn) {
+                  apiService.addDiary(entry as any);
+                }
+              }}
+            />
+          )}
+          {view === 'diary' && currentUser && (
+            <Diary
+              entries={currentUser.diary}
+              wardrobe={currentUser.wardrobe}
+              setEntries={(entries) => {
+                setDiary(entries);
+              }}
+            />
+          )}
+          {view === 'analytics' && currentUser && (
+            <Analytics wardrobe={currentUser.wardrobe} />
+          )}
+        </div>
+
+        {/* Bottom Navigation */}
+        <nav className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-lg rounded-2xl shadow-xl shadow-slate-200/50 border border-white/50 flex justify-between items-center px-4 py-3 z-40">
+          <NavButton active={view === 'wardrobe'} onClick={() => setView('wardrobe')} icon={<Shirt size={22} />} label="衣橱" />
+          <NavButton active={view === 'stylist'} onClick={() => setView('stylist')} icon={<Sparkles size={22} />} label="搭配" />
+          <NavButton active={view === 'diary'} onClick={() => setView('diary')} icon={<BookHeart size={22} />} label="日记" />
+          <NavButton active={view === 'analytics'} onClick={() => setView('analytics')} icon={<BarChart2 size={22} />} label="分析" />
+          <NavButton active={view === 'profile'} onClick={() => setView('profile')} icon={<User size={22} />} label="我的" />
+        </nav>
+      </main>
+    </div>
+  );
+};
+
+const NavButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
+  <button
+    onClick={onClick}
+    className={`flex flex-col items-center gap-1 transition-all duration-300 ${active ? 'text-indigo-600 scale-110' : 'text-slate-400 hover:text-slate-600'}`}
+  >
+    <div className={`${active ? 'fill-current' : ''}`}>{icon}</div>
+    <span className="text-[10px] font-medium tracking-wide">{label}</span>
+    {active && <div className="w-1 h-1 rounded-full bg-indigo-600 mt-0.5"></div>}
+  </button>
+);
+
+export default App;

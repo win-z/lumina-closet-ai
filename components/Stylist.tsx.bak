@@ -1,0 +1,168 @@
+
+import React, { useState } from 'react';
+import { ClothingItem, BodyProfile, OutfitSuggestion, DiaryEntry } from '../types';
+import { suggestOutfit } from '../services/api';
+import ImageRenderer from './ImageRenderer';
+import { Sparkles, CloudSun, Calendar, RefreshCw, BookmarkPlus, CheckCircle2 } from 'lucide-react';
+
+interface Props {
+  wardrobe: ClothingItem[];
+  profile: BodyProfile;
+  onSaveDiary: (entry: DiaryEntry) => void;
+}
+
+const Stylist: React.FC<Props> = ({ wardrobe, profile, onSaveDiary }) => {
+  const [weather, setWeather] = useState("晴天, 24°C");
+  const [occasion, setOccasion] = useState("周末约会");
+  const [suggestion, setSuggestion] = useState<OutfitSuggestion | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [showSavedToast, setShowSavedToast] = useState(false);
+
+  const getSuggestion = async () => {
+    if (wardrobe.length < 2) {
+        alert("请先在衣橱中添加一些衣物！");
+        return;
+    }
+    setLoading(true);
+    setSuggestion(null);
+    try {
+      const result = await suggestOutfit(weather, occasion);
+      setSuggestion(result);
+    } catch (e) {
+      console.error(e);
+      alert("生成搭配失败，请检查网络或Key。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveToDiary = () => {
+      if (!suggestion) return;
+      const ids: string[] = [];
+      if (suggestion.topId) ids.push(suggestion.topId);
+      if (suggestion.bottomId) ids.push(suggestion.bottomId);
+      if (suggestion.shoesId) ids.push(suggestion.shoesId);
+
+      const entry: DiaryEntry = {
+          id: Date.now().toString(),
+          date: new Date().toISOString().split('T')[0],
+          weather,
+          mood: "期待",
+          notes: suggestion.reasoning,
+          clothingIds: ids,
+      };
+
+      onSaveDiary(entry);
+
+      setShowSavedToast(true);
+      setTimeout(() => setShowSavedToast(false), 2500);
+  };
+
+  const getItem = (id?: string) => wardrobe.find(w => w.id === id);
+
+  return (
+    <div className="p-4 pb-28 space-y-6 relative">
+       {/* Toast Notification */}
+       {showSavedToast && (
+          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl z-50 flex items-center gap-2 animate-fade-in">
+              <CheckCircle2 className="text-green-400" size={20} />
+              <span className="text-sm font-bold">已成功保存到穿搭日记！</span>
+          </div>
+       )}
+
+       <div className="flex items-center gap-3 mb-2">
+        <h2 className="text-2xl font-bold font-serif text-slate-800">智能搭配</h2>
+        <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide shadow-sm">AI Stylist</span>
+      </div>
+
+      {/* Inputs */}
+      <div className="bg-white/70 backdrop-blur-md p-6 rounded-3xl shadow-lg shadow-indigo-100/50 border border-white space-y-4">
+        <div>
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                <CloudSun size={14} className="text-indigo-500" /> 天气情况
+            </label>
+            <input 
+                type="text" 
+                value={weather} 
+                onChange={e => setWeather(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                placeholder="例如：多云 20度"
+            />
+        </div>
+        <div>
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                <Calendar size={14} className="text-pink-500" /> 出行场合
+            </label>
+            <input 
+                type="text" 
+                value={occasion} 
+                onChange={e => setOccasion(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                placeholder="例如：商务会议"
+            />
+        </div>
+        <button 
+            onClick={getSuggestion}
+            disabled={loading}
+            className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-medium shadow-lg hover:bg-slate-800 transition-all flex justify-center items-center gap-2 mt-2"
+        >
+            {loading ? <RefreshCw className="animate-spin" size={18} /> : <Sparkles size={18} />}
+            {loading ? 'AI 正在思考搭配...' : '生成今日穿搭'}
+        </button>
+      </div>
+
+      {/* Suggestion Result */}
+      {suggestion && (
+        <div className="space-y-6 animate-fade-in">
+            <div className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/50 border border-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Sparkles size={100} />
+                </div>
+                
+                <h3 className="font-serif text-xl font-bold mb-3 text-slate-800">搭配推荐</h3>
+                <p className="text-slate-600 text-sm mb-6 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    “{suggestion.reasoning}”
+                </p>
+                
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                     {suggestion.topId && (
+                        <div className="text-center group">
+                            <div className="aspect-square rounded-2xl bg-slate-50 mb-2 overflow-hidden border border-slate-100 shadow-inner p-2">
+                                <ImageRenderer 
+                                    src={getItem(suggestion.topId)?.imageFront} 
+                                    className="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform" 
+                                />
+                            </div>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">上装</span>
+                        </div>
+                     )}
+                     {suggestion.bottomId && (
+                        <div className="text-center group">
+                            <div className="aspect-square rounded-2xl bg-slate-50 mb-2 overflow-hidden border border-slate-100 shadow-inner p-2">
+                                <ImageRenderer 
+                                    src={getItem(suggestion.bottomId)?.imageFront} 
+                                    className="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform" 
+                                />
+                            </div>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">下装</span>
+                        </div>
+                     )}
+                </div>
+
+                <div className="flex gap-3">
+                    <button 
+                        onClick={handleSaveToDiary}
+                        className="flex-1 bg-white border border-slate-200 text-slate-700 py-3 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                        {showSavedToast ? <CheckCircle2 size={16} className="text-green-500" /> : <BookmarkPlus size={16} />}
+                        {showSavedToast ? "已保存" : "保存搭配"}
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Stylist;

@@ -1,0 +1,216 @@
+
+import React, { useState } from 'react';
+import { BodyProfile as ProfileType, UserData } from '../types';
+import { dbService } from '../services/db';
+import ImageRenderer from './ImageRenderer';
+import { Camera, User, Ruler, Plus, Users, Trash2, Check } from 'lucide-react';
+
+interface Props {
+  profile: ProfileType;
+  setProfile: React.Dispatch<React.SetStateAction<ProfileType>>;
+  users: UserData[];
+  currentUserId: string;
+  onSwitchUser: (id: string) => void;
+  onAddUser: (name: string) => void;
+  onDeleteUser: (id: string) => void;
+}
+
+const BodyProfile: React.FC<Props> = ({ profile, setProfile, users, currentUserId, onSwitchUser, onAddUser, onDeleteUser }) => {
+  const [activeTab, setActiveTab] = useState<'details' | 'scan'>('details');
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [newUserName, setNewUserName] = useState("");
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, view: 'photoFront' | 'photoSide' | 'photoBack') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        try {
+            // Save to dedicated image store
+            const id = await dbService.saveImage(base64);
+            setProfile(prev => ({ ...prev, [view]: id }));
+        } catch (err) {
+            console.error("Failed to save profile image", err);
+            alert("图片保存失败");
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddUserSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if(newUserName.trim()) {
+          onAddUser(newUserName.trim());
+          setNewUserName("");
+          setShowUserMenu(false);
+      }
+  };
+
+  return (
+    <div className="p-4 pb-28 max-w-2xl mx-auto space-y-6">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold font-serif text-slate-800">形象档案</h2>
+            <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs font-bold rounded uppercase tracking-wide">Digital Twin</span>
+        </div>
+        <button 
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="flex items-center gap-2 bg-slate-900 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-md hover:bg-slate-800 transition-all"
+        >
+            <Users size={14} />
+            {users.length > 1 ? `切换 (${users.length})` : '用户管理'}
+        </button>
+      </div>
+
+      {/* User Management Panel */}
+      {showUserMenu && (
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-4 mb-4 animate-fade-in relative z-20">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">切换或添加用户</h3>
+              <div className="space-y-2 mb-4">
+                  {users.map(u => (
+                      <div key={u.id} className={`flex items-center justify-between p-3 rounded-xl transition-all ${u.id === currentUserId ? 'bg-indigo-50 border border-indigo-200' : 'bg-slate-50 border border-slate-100 hover:border-indigo-200'}`}>
+                          <button onClick={() => { onSwitchUser(u.id); setShowUserMenu(false); }} className="flex items-center gap-3 flex-1 text-left">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${u.id === currentUserId ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                  {u.profile.name.charAt(0)}
+                              </div>
+                              <div>
+                                  <p className={`text-sm font-bold ${u.id === currentUserId ? 'text-indigo-900' : 'text-slate-700'}`}>{u.profile.name}</p>
+                                  <p className="text-[10px] text-slate-400">{u.wardrobe.length} 件衣物</p>
+                              </div>
+                              {u.id === currentUserId && <Check size={16} className="text-indigo-600" />}
+                          </button>
+                          {users.length > 1 && (
+                              <button onClick={() => onDeleteUser(u.id)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16} /></button>
+                          )}
+                      </div>
+                  ))}
+              </div>
+              
+              <form onSubmit={handleAddUserSubmit} className="flex gap-2 border-t border-slate-100 pt-3">
+                  <input 
+                    type="text" 
+                    placeholder="新用户名称..." 
+                    value={newUserName}
+                    onChange={e => setNewUserName(e.target.value)}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                  />
+                  <button type="submit" disabled={!newUserName} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50">
+                      <Plus size={16} />
+                  </button>
+              </form>
+          </div>
+      )}
+
+      <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+        <button 
+          onClick={() => setActiveTab('details')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-xl transition-all ${activeTab === 'details' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+        >
+          身体数据
+        </button>
+        <button 
+          onClick={() => setActiveTab('scan')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-xl transition-all ${activeTab === 'scan' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+        >
+          多维扫描
+        </button>
+      </div>
+
+      {activeTab === 'details' && (
+        <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-100 border border-white space-y-8 animate-fade-in">
+            <div className="flex items-center gap-6">
+                <div className="w-20 h-20 bg-gradient-to-tr from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-indigo-600 shadow-inner">
+                    <User size={40} />
+                </div>
+                <div>
+                    <h3 className="font-bold text-xl text-slate-800 mb-1">{profile.name || '用户'}</h3>
+                    <p className="text-slate-400 text-sm">个人专属模特模型</p>
+                </div>
+            </div>
+
+            <div className="space-y-6">
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">昵称</label>
+                    <input 
+                        type="text" 
+                        value={profile.name} 
+                        onChange={e => setProfile({...profile, name: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"
+                        placeholder="输入您的称呼"
+                    />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">身高 (cm)</label>
+                        <div className="relative group">
+                            <Ruler className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                            <input 
+                                type="number" 
+                                value={profile.heightCm} 
+                                onChange={e => setProfile({...profile, heightCm: Number(e.target.value)})}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none transition-colors font-medium text-slate-700"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">体重 (kg)</label>
+                        <div className="relative group">
+                            <Ruler className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                            <input 
+                                type="number" 
+                                value={profile.weightKg} 
+                                onChange={e => setProfile({...profile, weightKg: Number(e.target.value)})}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none transition-colors font-medium text-slate-700"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {activeTab === 'scan' && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="bg-blue-50/80 border border-blue-100 p-5 rounded-2xl text-blue-900 text-sm">
+             <p className="font-bold mb-2 flex items-center gap-2">📸 扫描指南</p>
+             <ul className="list-disc pl-4 space-y-1.5 opacity-80 text-xs leading-relaxed">
+                <li>请穿着紧身衣或运动服，以便准确识别身形。</li>
+                <li>确保光线充足，背景干净简单。</li>
+                <li>需要拍摄从头到脚的全身照片。</li>
+             </ul>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+             {[
+                { label: '正面', key: 'photoFront' },
+                { label: '侧面', key: 'photoSide' },
+                { label: '背面', key: 'photoBack' }
+             ].map((view) => {
+                const profileKey = view.key as 'photoFront' | 'photoSide' | 'photoBack';
+                return (
+                <div key={view.key} className="relative aspect-[2/5] bg-white rounded-2xl overflow-hidden group cursor-pointer border-2 border-slate-100 hover:border-indigo-500 transition-all shadow-sm">
+                     <ImageRenderer 
+                        src={profile[profileKey]} 
+                        className="w-full h-full object-cover" 
+                     />
+                     
+                     {!profile[profileKey] && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 group-hover:text-indigo-400 transition-colors pointer-events-none">
+                             <Camera size={28} className="mb-2" />
+                             <span className="text-xs font-bold">{view.label}</span>
+                        </div>
+                     )}
+                     <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={(e) => handlePhotoUpload(e, profileKey)} />
+                </div>
+             )})}
+          </div>
+          <p className="text-center text-xs text-slate-400 mt-4">照片仅存储于本地，用于AI生成试穿效果，不会上传到公共服务器。</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default BodyProfile;

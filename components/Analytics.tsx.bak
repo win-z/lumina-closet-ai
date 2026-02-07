@@ -1,0 +1,103 @@
+import React, { useEffect, useState } from 'react';
+import { ClothingItem } from '../types';
+import { analyzeWardrobeHealth } from '../services/api';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { BrainCircuit } from 'lucide-react';
+
+interface Props {
+  wardrobe: ClothingItem[];
+}
+
+const Analytics: React.FC<Props> = ({ wardrobe }) => {
+  const [analysis, setAnalysis] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Only analyze if there is data
+    if (wardrobe.length > 0) {
+        setLoading(true);
+        analyzeWardrobeHealth(wardrobe)
+            .then(setAnalysis)
+            .catch(err => console.error("Analysis failed", err))
+            .finally(() => setLoading(false));
+    }
+  }, [wardrobe.length]); 
+
+  // Safely calculate data ensuring categories exist
+  const categoryData: {name: string, value: number}[] = Object.values(wardrobe.reduce((acc, item) => {
+    const cat = item.category || '未分类';
+    acc[cat] = acc[cat] || { name: cat, value: 0 };
+    acc[cat].value += 1;
+    return acc;
+  }, {} as Record<string, {name: string, value: number}>));
+
+  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981'];
+
+  return (
+    <div className="p-4 pb-28 space-y-6 animate-fade-in">
+        <h2 className="text-2xl font-bold font-serif text-slate-800">衣橱分析</h2>
+        
+        {wardrobe.length === 0 ? (
+            <div className="text-center mt-10 p-10 bg-white rounded-3xl border border-slate-100 shadow-sm">
+                <p className="text-slate-500 italic">添加衣物后即可查看分析报告。</p>
+            </div>
+        ) : (
+            <>
+                {/* Chart */}
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                    <h3 className="font-bold text-sm text-slate-500 uppercase tracking-wider mb-4 text-center">品类构成</h3>
+                    {/* Explicit pixel min-height to strictly prevent Recharts width(-1) crash in flex contexts */}
+                    <div className="w-full relative" style={{ height: '250px', minHeight: '250px' }}>
+                        <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
+                            <PieChart>
+                                <Pie
+                                    data={categoryData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {categoryData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-4 justify-center">
+                        {categoryData.map((d, i) => (
+                            <div key={d.name} className="flex items-center gap-1 text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded-full">
+                                <span className="w-2 h-2 rounded-full" style={{backgroundColor: COLORS[i % COLORS.length]}}></span>
+                                {d.name} ({d.value})
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* AI Text Analysis */}
+                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-xl shadow-indigo-200 relative overflow-hidden">
+                    <BrainCircuit className="absolute -right-4 -top-4 text-white opacity-10" size={120} />
+                    <h3 className="font-bold text-lg mb-4 relative z-10 flex items-center gap-2">
+                        <BrainCircuit size={20} className="text-indigo-300" /> AI 诊断报告
+                    </h3>
+                    <div className="relative z-10 text-indigo-50 text-sm leading-relaxed tracking-wide">
+                        {loading ? (
+                            <p className="animate-pulse flex items-center gap-2">
+                                正在分析您的时尚DNA...
+                            </p>
+                        ) : (
+                            <div className="markdown-content" dangerouslySetInnerHTML={{ __html: analysis.replace(/\n/g, '<br/>') }} />
+                        )}
+                    </div>
+                </div>
+            </>
+        )}
+    </div>
+  );
+};
+
+export default Analytics;

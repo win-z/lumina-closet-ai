@@ -1,0 +1,457 @@
+
+import React, { useState } from 'react';
+import { ClothingItem, ClothingCategory } from '../types';
+import { aiApi, wardrobeApi } from '../services/api';
+import ImageRenderer from './ImageRenderer';
+import { Camera, Upload, Plus, X, Trash2, Search, LayoutGrid, MoreHorizontal, ChevronDown, AlignJustify } from 'lucide-react';
+
+interface Props {
+  items: ClothingItem[];
+  setItems: React.Dispatch<React.SetStateAction<ClothingItem[]>>;
+}
+
+const COMMON_TAGS = ["休闲", "商务", "运动", "复古", "极简", "约会", "度假", "春", "夏", "秋", "冬"];
+
+// Helper to resize and compress image
+const resizeImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 800; // Limit max dimension to 800px
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            reject(new Error("Canvas context failed"));
+            return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        // Compress to JPEG with 0.7 quality
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+const WardrobeGallery: React.FC<Props> = ({ items, setItems }) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
+  
+  // temporary base64 for preview, before saving to DB
+  const [previewFront, setPreviewFront] = useState<string>('');
+  const [previewBack, setPreviewBack] = useState<string>('');
+
+  const [newItem, setNewItem] = useState<Partial<ClothingItem>>({
+    category: ClothingCategory.TOP,
+    tags: []
+  });
+
+  const [customTagInput, setCustomTagInput] = useState("");
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+        // Compress image before using
+        const compressedBase64 = await resizeImage(file);
+        
+        if (side === 'front') {
+            setPreviewFront(compressedBase64);
+            setAnalyzing(true);
+            try {
+                // We use the base64 directly for analysis before saving
+                const result = await aiApi.autoTag(compressedBase64);
+                setNewItem(prev => ({
+                    ...prev,
+                    name: result.name,
+                    color: result.color,
+                    category: result.category as ClothingCategory,
+                    tags: result.tags || []
+                }));
+            } catch (err) {
+                console.error("Auto-tagging failed", err);
+            } finally {
+                setAnalyzing(false);
+            }
+        } else {
+            setPreviewBack(compressedBase64);
+        }
+    } catch (error) {
+        console.error("Image processing error", error);
+        alert("图片处理失败，请重试或更换图片");
+    }
+  };
+
+  const toggleTag = (tag: string) => {
+    const currentTags = newItem.tags || [];
+    if (currentTags.includes(tag)) {
+        setNewItem({ ...newItem, tags: currentTags.filter(t => t !== tag) });
+    } else {
+        setNewItem({ ...newItem, tags: [...currentTags, tag] });
+    }
+  };
+
+  const addCustomTag = () => {
+    if (customTagInput && !newItem.tags?.includes(customTagInput)) {
+        setNewItem({ ...newItem, tags: [...(newItem.tags || []), customTagInput] });
+        setCustomTagInput("");
+    }
+  };
+
+  const saveItem = async () => {
+    if (!previewFront || !newItem.name) {
+      alert("请上传正面图片并填写名称");
+      return;
+    }
+
+    try {
+      setAnalyzing(true);
+
+      // 发送数据到后端保存
+      const safeTags: string[] = Array.from(new Set(newItem.tags || []));
+
+      console.log('[WardrobeGallery] 开始保存单品:', { name: newItem.name, category: newItem.category });
+      console.log('[WardrobeGallery] 图片数据长度:', previewFront?.length);
+
+      const result = await wardrobeApi.add({
+        imageFront: previewFront,
+        imageBack: previewBack || undefined,
+        category: newItem.category!,
+        name: newItem.name,
+        color: newItem.color || '未知',
+        tags: safeTags,
+        brand: newItem.brand,
+        price: newItem.price,
+        purchaseDate: newItem.purchaseDate,
+      });
+
+      console.log('[WardrobeGallery] 保存成功:', result);
+      console.log('[WardrobeGallery] 返回的图片URL:', result.imageFront);
+
+      // 验证返回的数据
+      if (!result || !result.id) {
+        throw new Error('服务器返回数据不完整');
+      }
+
+      // 添加到本地列表
+      setItems(prev => [...prev, result]);
+
+      // 重置表单
+      setIsUploading(false);
+      setNewItem({ category: ClothingCategory.TOP, tags: [] });
+      setPreviewFront('');
+      setPreviewBack('');
+
+      alert("入库成功！");
+
+    } catch (e: any) {
+      console.error("[WardrobeGallery] 保存失败:", e);
+      const errorMsg = e?.message || "未知错误";
+      alert(`保存失败: ${errorMsg}\n\n可能原因：\n1. 网络连接问题\n2. 图片上传失败\n3. 服务器内部错误`);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const deleteItem = (id: string) => {
+    if(confirm("确定要删除这件衣服吗？")) {
+        setItems(prev => prev.filter(i => i.id !== id));
+        setSelectedItem(null);
+    }
+  };
+
+  // Group items by category
+  const groupedItems = Object.values(ClothingCategory).reduce((acc, category) => {
+      acc[category] = items.filter(i => i.category === category);
+      return acc;
+  }, {} as Record<ClothingCategory, ClothingItem[]>);
+
+  return (
+    <div className="bg-white min-h-screen pb-28">
+      {/* Header matching the reference */}
+      <div className="sticky top-0 bg-white z-20 px-4 py-3 flex justify-between items-center border-b border-slate-50">
+        <div className="flex items-center gap-1">
+            <h2 className="text-lg font-bold text-slate-900">我的衣橱</h2>
+            <ChevronDown size={16} className="text-slate-900" />
+        </div>
+        <div className="flex items-center gap-4 text-slate-800">
+            <Search size={22} strokeWidth={1.5} />
+            <LayoutGrid size={22} strokeWidth={1.5} />
+            <MoreHorizontal size={22} strokeWidth={1.5} />
+        </div>
+      </div>
+
+      {/* Main Content - Categorized Lists */}
+      <div className="p-4 space-y-8">
+        {items.length === 0 && (
+            <div className="text-center py-20">
+                <p className="text-slate-300 font-medium">衣橱空空如也</p>
+                <p className="text-slate-300 text-xs mt-1">点击右下角 "+" 添加</p>
+            </div>
+        )}
+
+        {Object.entries(groupedItems).map(([category, categoryItems]) => {
+            if (categoryItems.length === 0) return null;
+            return (
+                <div key={category} className="animate-fade-in">
+                    {/* Category Header */}
+                    <div className="flex justify-between items-center mb-3 px-1">
+                        <div className="flex items-baseline gap-2">
+                            <h3 className="text-sm font-medium text-slate-800">{category}</h3>
+                            <span className="text-xs text-slate-400">· {categoryItems.length}个</span>
+                        </div>
+                        <AlignJustify size={14} className="text-slate-300" />
+                    </div>
+
+                    {/* Grid */}
+                    <div className="grid grid-cols-4 gap-3">
+                        {categoryItems.filter(item => item && item.id).map(item => (
+                            <div 
+                                key={item.id} 
+                                onClick={() => setSelectedItem(item)}
+                                className="aspect-[3/4] bg-slate-50 rounded-lg overflow-hidden cursor-pointer relative group shadow-sm border border-slate-50"
+                            >
+                                <ImageRenderer 
+                                    src={item.imageFront || item.imageBack} 
+                                    alt={item.name || '未命名'} 
+                                    className="w-full h-full object-cover mix-blend-multiply transition-transform group-hover:scale-105" 
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        })}
+      </div>
+
+      {/* Floating Action Button (FAB) */}
+      <button 
+        onClick={() => setIsUploading(true)}
+        className="fixed bottom-24 right-5 w-14 h-14 bg-indigo-600 rounded-full shadow-xl shadow-indigo-300 flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-all z-30"
+      >
+        <Plus size={28} />
+      </button>
+
+      {/* Item Detail Modal */}
+      {selectedItem && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-fade-in" onClick={() => setSelectedItem(null)}>
+              <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={18} className="text-slate-500" /></button>
+                  
+                  <div className="aspect-[3/4] bg-slate-50 rounded-2xl mb-4 overflow-hidden border border-slate-100 flex items-center justify-center">
+                      <ImageRenderer src={selectedItem.imageFront} className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                  </div>
+                  
+                  <div className="mb-4">
+                      <div className="flex justify-between items-start mb-1">
+                          <h3 className="text-lg font-bold text-slate-800">{selectedItem.name}</h3>
+                          {selectedItem.price && <span className="text-indigo-600 font-bold">¥{selectedItem.price}</span>}
+                      </div>
+                      <p className="text-sm text-slate-500 mb-2">{selectedItem.brand} · {selectedItem.category} · {selectedItem.color}</p>
+                      
+                       <div className="flex flex-wrap gap-2">
+                           {(selectedItem.tags || []).map(tag => (
+                               <span key={tag} className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs rounded-md">#{tag}</span>
+                           ))}
+                       </div>
+                  </div>
+
+                  <button 
+                    onClick={() => deleteItem(selectedItem.id)}
+                    className="w-full py-3 rounded-xl border border-red-100 text-red-500 font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                      <Trash2 size={16} /> 删除此单品
+                  </button>
+              </div>
+          </div>
+      )}
+
+      {/* Add Item Modal */}
+      {isUploading && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-slide-up">
+            <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-10 py-2">
+              <h3 className="text-xl font-bold text-slate-800">录入新单品</h3>
+              <button onClick={() => setIsUploading(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20} className="text-slate-600" /></button>
+            </div>
+
+            <div className="space-y-6">
+                {/* Image Upload Section */}
+                <div className="flex gap-4">
+                    <div className="relative w-1/2 aspect-[3/4] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center hover:border-indigo-400 transition-colors overflow-hidden">
+                        {previewFront ? (
+                            <img src={previewFront} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="text-center p-4">
+                                <Camera className="mx-auto text-indigo-400 mb-2" />
+                                <span className="text-xs text-slate-400 font-medium">正面 (必填)</span>
+                            </div>
+                        )}
+                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={(e) => handleFileChange(e, 'front')} />
+                    </div>
+                    <div className="relative w-1/2 aspect-[3/4] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center hover:border-indigo-400 transition-colors overflow-hidden">
+                        {previewBack ? (
+                            <img src={previewBack} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="text-center p-4">
+                                <Upload className="mx-auto text-slate-300 mb-2" />
+                                <span className="text-xs text-slate-400 font-medium">背面 (可选)</span>
+                            </div>
+                        )}
+                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={(e) => handleFileChange(e, 'back')} />
+                    </div>
+                </div>
+
+                {analyzing && (
+                    <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 p-3 rounded-xl">
+                        <span className="animate-spin">✨</span>
+                        <span className="text-sm font-medium">AI 正在识别款式细节...</span>
+                    </div>
+                )}
+
+                {/* Basic Info */}
+                <div className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">名称</label>
+                        <input 
+                            type="text" 
+                            value={newItem.name || ''} 
+                            onChange={e => setNewItem({...newItem, name: e.target.value})}
+                            className="w-full border-b border-slate-200 py-2 focus:border-indigo-600 outline-none text-slate-800 font-medium bg-transparent placeholder-slate-300"
+                            placeholder="例如：深蓝色双排扣西装"
+                        />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                         <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">品类</label>
+                            <select 
+                                value={newItem.category}
+                                onChange={e => setNewItem({...newItem, category: e.target.value as ClothingCategory})}
+                                className="w-full border-b border-slate-200 py-2 bg-transparent text-sm font-medium"
+                            >
+                                {Object.values(ClothingCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                         </div>
+                         <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">颜色</label>
+                            <input 
+                                type="text" 
+                                value={newItem.color || ''} 
+                                onChange={e => setNewItem({...newItem, color: e.target.value})}
+                                className="w-full border-b border-slate-200 py-2 bg-transparent text-sm font-medium"
+                            />
+                         </div>
+                    </div>
+
+                    {/* Extended Details */}
+                    <div className="grid grid-cols-2 gap-4">
+                         <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">品牌</label>
+                            <input 
+                                type="text" 
+                                value={newItem.brand || ''} 
+                                onChange={e => setNewItem({...newItem, brand: e.target.value})}
+                                className="w-full border-b border-slate-200 py-2 bg-transparent text-sm"
+                                placeholder="Uniqlo, Gucci..."
+                            />
+                         </div>
+                         <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">价格</label>
+                            <input 
+                                type="number" 
+                                value={newItem.price || ''} 
+                                onChange={e => setNewItem({...newItem, price: Number(e.target.value)})}
+                                className="w-full border-b border-slate-200 py-2 bg-transparent text-sm"
+                                placeholder="¥"
+                            />
+                         </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">购买日期</label>
+                        <input 
+                            type="date" 
+                            value={newItem.purchaseDate || ''} 
+                            onChange={e => setNewItem({...newItem, purchaseDate: e.target.value})}
+                            className="w-full border-b border-slate-200 py-2 bg-transparent text-sm text-slate-600"
+                        />
+                    </div>
+
+                    {/* Tags */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">标签 (风格 / 场合 / 季节)</label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                            {COMMON_TAGS.map(tag => (
+                                <button 
+                                    key={tag} 
+                                    onClick={() => toggleTag(tag)}
+                                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${newItem.tags?.includes(tag) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}
+                                >
+                                    {tag}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex gap-2">
+                            <input 
+                                type="text" 
+                                value={customTagInput}
+                                onChange={e => setCustomTagInput(e.target.value)}
+                                placeholder="添加自定义标签..."
+                                className="flex-1 bg-slate-50 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                                onKeyDown={e => e.key === 'Enter' && addCustomTag()}
+                            />
+                            <button onClick={addCustomTag} className="bg-slate-200 text-slate-600 px-4 rounded-lg text-sm font-medium">+</button>
+                        </div>
+                        {newItem.tags && newItem.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-3 p-3 bg-slate-50 rounded-xl">
+                                {newItem.tags.map(tag => (
+                                    <span key={tag} className="bg-white border border-slate-200 text-slate-600 text-xs px-2 py-1 rounded-md flex items-center gap-1">
+                                        # {tag}
+                                        <button onClick={() => toggleTag(tag)}><X size={10} /></button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <button 
+                  onClick={saveItem}
+                  disabled={!previewFront || analyzing}
+                  className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-slate-800 disabled:opacity-50 transition-all mt-4"
+                >
+                  确认入库
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default WardrobeGallery;
