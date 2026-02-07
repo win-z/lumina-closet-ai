@@ -10,7 +10,8 @@ import { useDiary } from '../src/hooks/useDiary';
 import { useApp } from '../src/context/AppContext';
 import { aiApi, outfitsApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
-import { Sparkles, CloudSun, Calendar, RefreshCw, BookmarkPlus, Trash2, Edit } from 'lucide-react';
+import { Sparkles, CloudSun, Calendar, RefreshCw, BookmarkPlus, Trash2, Edit, Plus, X } from 'lucide-react';
+import { ClothingCategory } from '../types';
 
 const Stylist: React.FC = () => {
   const { items: wardrobe, getById } = useWardrobe();
@@ -30,6 +31,13 @@ const Stylist: React.FC = () => {
   const [tagInput, setTagInput] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // 手动选择模式
+  const [manualMode, setManualMode] = useState(false);
+  const [selectedTop, setSelectedTop] = useState<string>('');
+  const [selectedBottom, setSelectedBottom] = useState<string>('');
+  const [selectedShoes, setSelectedShoes] = useState<string>('');
+  const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
+
   // 加载已保存搭配
   const loadSavedOutfits = async () => {
     console.log('loadSavedOutfits 被调用');
@@ -44,7 +52,12 @@ const Stylist: React.FC = () => {
     }
   };
 
-  // 切换到已保存标签时加载数据
+  // 组件挂载时加载数据（用于显示正确的计数）
+  React.useEffect(() => {
+    loadSavedOutfits();
+  }, []);
+
+  // 切换到已保存标签时加载数据（刷新最新数据）
   React.useEffect(() => {
     if (activeTab === 'saved') {
       console.log('Loading saved outfits...');
@@ -94,6 +107,38 @@ const Stylist: React.FC = () => {
     }
   };
 
+  // 手动选择生成试穿图
+  const handleManualGenerate = async () => {
+    if (!selectedTop && !selectedBottom) {
+      alert("请至少选择上装或下装！");
+      return;
+    }
+    
+    if (!profile?.photoFront) {
+      alert("请先上传身体档案照片！");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await aiApi.outfit(weather, occasion);
+      // 使用手动选择的服装替换AI推荐的
+      const customSuggestion = {
+        ...result,
+        topId: selectedTop || undefined,
+        bottomId: selectedBottom || undefined,
+        shoesId: selectedShoes || undefined,
+        reasoning: `手动选择搭配：${selectedTop ? '上装' : ''}${selectedBottom ? ' + 下装' : ''}${selectedShoes ? ' + 鞋履' : ''}`,
+      };
+      setSuggestion(customSuggestion);
+    } catch (e) {
+      console.error(e);
+      alert("生成试穿图失败，请检查网络。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveToOutfit = async () => {
     if (!suggestion) return;
 
@@ -116,6 +161,11 @@ const Stylist: React.FC = () => {
       setSuggestion(null);
       setCustomName('');
       setCustomTags([]);
+      setSelectedTop('');
+      setSelectedBottom('');
+      setSelectedShoes('');
+      setSelectedAccessories([]);
+      setManualMode(false);
       setActiveTab('saved');
       // 强制刷新已保存搭配列表
       setTimeout(() => {
@@ -132,6 +182,20 @@ const Stylist: React.FC = () => {
     setEditingOutfit(entry);
     setCustomName(entry.name || '');
     setCustomTags(entry.tags || []);
+  };
+
+  // 删除搭配
+  const handleDeleteOutfit = async (id: string) => {
+    if (!confirm('确定要删除这个搭配吗？')) return;
+    
+    try {
+      await outfitsApi.delete(id);
+      alert("搭配已删除！");
+      loadSavedOutfits();
+    } catch (e: any) {
+      console.error("删除失败", e);
+      alert("删除失败: " + (e?.message || '未知错误'));
+    }
   };
 
   const handleSaveEditedOutfit = async () => {
@@ -172,6 +236,17 @@ const Stylist: React.FC = () => {
   };
 
   const getItem = (id: string) => getById(id);
+
+  // 按类别筛选服装
+  const tops = wardrobe.filter(item => item.category === ClothingCategory.TOP || item.category === '上装');
+  const bottoms = wardrobe.filter(item => item.category === ClothingCategory.BOTTOM || item.category === '下装');
+  const shoes = wardrobe.filter(item => item.category === ClothingCategory.SHOES || item.category === '鞋履');
+  const accessories = wardrobe.filter(item => 
+    item.category === ClothingCategory.ACCESSORY || 
+    item.category === '配饰' ||
+    item.category === ClothingCategory.OUTERWEAR ||
+    item.category === '外套'
+  );
 
   return (
     <div className="p-4 pb-28 space-y-6">
@@ -215,6 +290,36 @@ const Stylist: React.FC = () => {
       {/* 生成搭配Tab */}
       {activeTab === 'generate' && (
         <>
+          {/* 模式切换 */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => {
+                setManualMode(false);
+                setSuggestion(null);
+              }}
+              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
+                !manualMode
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              🤖 AI推荐
+            </button>
+            <button
+              onClick={() => {
+                setManualMode(true);
+                setSuggestion(null);
+              }}
+              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
+                manualMode
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              ✋ 手动选择
+            </button>
+          </div>
+
           {/* Input Section */}
           <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
             <div>
@@ -243,25 +348,163 @@ const Stylist: React.FC = () => {
               />
             </div>
 
-            <button
-              onClick={getSuggestion}
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <RefreshCw size={20} className="animate-spin" />
-              ) : (
-                <Sparkles size={20} />
-              )}
-              {loading ? '生成中...' : '获取搭配建议'}
-            </button>
+            {/* 手动选择模式 - 服装选择器 */}
+            {manualMode && (
+              <div className="space-y-4 border-t border-slate-100 pt-4">
+                {/* 上装选择 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">上装</label>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {tops.length === 0 ? (
+                      <span className="text-sm text-slate-400">衣橱中没有上装</span>
+                    ) : (
+                      tops.map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => setSelectedTop(selectedTop === item.id ? '' : item.id)}
+                          className={`flex-shrink-0 relative ${selectedTop === item.id ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
+                        >
+                          <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-50">
+                            <ImageRenderer
+                              src={item.imageFront}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          {selectedTop === item.id && (
+                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                              <span className="text-indigo-600 font-bold text-lg">✓</span>
+                            </div>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 下装选择 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">下装</label>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {bottoms.length === 0 ? (
+                      <span className="text-sm text-slate-400">衣橱中没有下装</span>
+                    ) : (
+                      bottoms.map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => setSelectedBottom(selectedBottom === item.id ? '' : item.id)}
+                          className={`flex-shrink-0 relative ${selectedBottom === item.id ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
+                        >
+                          <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-50">
+                            <ImageRenderer
+                              src={item.imageFront}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          {selectedBottom === item.id && (
+                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                              <span className="text-indigo-600 font-bold text-lg">✓</span>
+                            </div>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 鞋履选择 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">鞋履</label>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {shoes.length === 0 ? (
+                      <span className="text-sm text-slate-400">衣橱中没有鞋履</span>
+                    ) : (
+                      shoes.map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => setSelectedShoes(selectedShoes === item.id ? '' : item.id)}
+                          className={`flex-shrink-0 relative ${selectedShoes === item.id ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
+                        >
+                          <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-50">
+                            <ImageRenderer
+                              src={item.imageFront}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          {selectedShoes === item.id && (
+                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                              <span className="text-indigo-600 font-bold text-lg">✓</span>
+                            </div>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 已选择展示 */}
+                {(selectedTop || selectedBottom || selectedShoes) && (
+                  <div className="bg-indigo-50 rounded-xl p-3">
+                    <p className="text-sm font-medium text-indigo-700 mb-2">已选择：</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTop && (
+                        <span className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
+                          上装: {getById(selectedTop)?.name}
+                        </span>
+                      )}
+                      {selectedBottom && (
+                        <span className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
+                          下装: {getById(selectedBottom)?.name}
+                        </span>
+                      )}
+                      {selectedShoes && (
+                        <span className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
+                          鞋履: {getById(selectedShoes)?.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleManualGenerate}
+                  disabled={loading || (!selectedTop && !selectedBottom)}
+                  className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <RefreshCw size={20} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={20} />
+                  )}
+                  {loading ? '生成中...' : '生成试穿图'}
+                </button>
+              </div>
+            )}
+
+            {/* AI推荐模式的生成按钮 */}
+            {!manualMode && (
+              <button
+                onClick={getSuggestion}
+                disabled={loading}
+                className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <RefreshCw size={20} className="animate-spin" />
+                ) : (
+                  <Sparkles size={20} />
+                )}
+                {loading ? '生成中...' : '获取搭配建议'}
+              </button>
+            )}
           </div>
 
           {/* Suggestion Display */}
           {suggestion && (
             <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-slate-800">推荐搭配</h3>
+                <h3 className="font-semibold text-slate-800">{manualMode ? '试穿效果' : '推荐搭配'}</h3>
                 <button
                   onClick={handleSaveToOutfit}
                   className="flex items-center gap-1 text-indigo-500 hover:text-indigo-600 text-sm"
@@ -466,6 +709,13 @@ const Stylist: React.FC = () => {
                           className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg"
                         >
                           <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteOutfit(entry.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                          title="删除搭配"
+                        >
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
