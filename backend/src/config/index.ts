@@ -34,6 +34,13 @@ export const config = {
     visionModel: process.env.SILICONFLOW_VISION_MODEL || 'Qwen/Qwen2.5-VL-32B-Instruct',
   },
 
+  // 豆包配置（图像生成）
+  doubao: {
+    apiUrl: process.env.DOUBAO_API_URL || 'https://ark.cn-beijing.volces.com/api/v3',
+    apiKey: process.env.DOUBAO_API_KEY || '',
+    model: process.env.DOUBAO_MODEL || 'doubao-seedream-4-5-251128',
+  },
+
   // CORS配置
   cors: {
     origin: '*',

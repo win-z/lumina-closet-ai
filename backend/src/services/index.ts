@@ -5,3 +5,4 @@
 export { AiService, aiService } from './ai';
 export { CosService, cosService } from './cos';
 export { VirtualTryOnService, virtualTryOnService } from './image';
+export { DoubaoService, doubaoService } from './doubao';
