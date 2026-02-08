@@ -27,6 +27,9 @@ const autoTagSchema = z.object({
 const outfitSchema = z.object({
   weather: z.string().min(1, '天气不能为空'),
   occasion: z.string().min(1, '场合不能为空'),
+  topId: z.string().optional(),
+  bottomId: z.string().optional(),
+  shoesId: z.string().optional(),
 });
 
 const tryOnSchema = z.object({
@@ -51,30 +54,66 @@ const autoTag = asyncHandler(async (req: Request, res: Response<ApiResponse>) =>
 /**
  * POST /api/ai/outfit
  * AI穿搭建议（硅基流动）
+ * 支持手动选择模式：如果提供了topId/bottomId/shoesId，直接使用，不调用AI推荐
  */
 const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
   const userId = req.user!.userId;
-  const { weather, occasion } = req.body;
+  const { weather, occasion, topId, bottomId, shoesId } = req.body;
 
   const wardrobe = await ClothingItemModel.findByUserId(userId);
   const profile = await BodyProfileModel.findByUserId(userId);
 
   if (!profile) throw Errors.badRequest('请先完善您的身体档案');
-  if (wardrobe.length < 2) throw Errors.badRequest('衣橱单品不足，无法生成建议');
+  
+  // 检查是手动选择模式还是AI推荐模式
+  const isManualMode = topId || bottomId || shoesId;
+  
+  let suggestion: any;
+  let top, bottom, shoes;
 
-  const suggestion = await aiService.suggestOutfit(wardrobe, weather, occasion, profile);
+  if (isManualMode) {
+    // 手动选择模式：直接使用用户选择的服装
+    logger.info('手动选择模式', { topId, bottomId, shoesId });
+    
+    top = topId ? await ClothingItemModel.findById(topId, userId) || undefined : undefined;
+    bottom = bottomId ? await ClothingItemModel.findById(bottomId, userId) || undefined : undefined;
+    shoes = shoesId ? await ClothingItemModel.findById(shoesId, userId) || undefined : undefined;
 
-  const top = wardrobe.find(w => w.id === suggestion.topId);
-  const bottom = wardrobe.find(w => w.id === suggestion.bottomId);
-  const shoes = wardrobe.find(w => w.id === suggestion.shoesId);
+    if ((topId && !top) || (bottomId && !bottom) || (shoesId && !shoes)) {
+      throw Errors.notFound('所选单品不存在或无权访问');
+    }
+
+    suggestion = {
+      topId: top?.id,
+      bottomId: bottom?.id,
+      shoesId: shoes?.id,
+      reasoning: `手动选择搭配：${top ? '上装' : ''}${bottom ? ' + 下装' : ''}${shoes ? ' + 鞋履' : ''}，适合${occasion}`,
+    };
+  } else {
+    // AI推荐模式：调用AI服务生成建议
+    if (wardrobe.length < 2) throw Errors.badRequest('衣橱单品不足，无法生成建议');
+    
+    logger.info('AI推荐模式');
+    suggestion = await aiService.suggestOutfit(wardrobe, weather, occasion, profile);
+    
+    top = wardrobe.find(w => w.id === suggestion.topId);
+    bottom = wardrobe.find(w => w.id === suggestion.bottomId);
+    shoes = wardrobe.find(w => w.id === suggestion.shoesId);
+  }
 
   let tryOnImage: string | undefined;
 
   try {
     if (top || bottom) {
-      // 使用内置的虚拟试穿预览服务（生成穿搭方案说明图）
-      // 注意：真正的虚拟试穿需要专用API（如 Segmind Try-On Diffusion）
+      // 使用豆包API生成虚拟试穿图
+      logger.info('开始生成虚拟试穿图', { 
+        mode: isManualMode ? '手动选择' : 'AI推荐',
+        top: top?.name, 
+        bottom: bottom?.name,
+        hasProfilePhoto: !!profile.photoFront
+      });
       tryOnImage = await virtualTryOnService.generate(profile, top, bottom, occasion);
+      logger.info('虚拟试穿图生成完成');
     }
   } catch (error) {
     logger.error('生成试穿效果图失败:', error);

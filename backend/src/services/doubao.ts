@@ -96,10 +96,28 @@ export class DoubaoService {
     }
 
     logger.info(`共使用 ${referenceImages.length} 张参考图片`);
+    
+    // 详细记录所有参考图片URL
+    referenceImages.forEach((url, index) => {
+      logger.info(`参考图${index + 1}: ${url}`);
+    });
 
     // 构建提示词
     const prompt = this.buildPrompt(profile, top, bottom, shoes, occasion);
     logger.info('提示词:', prompt);
+
+    // 构建请求体
+    const requestBody = {
+      model: this.model,
+      prompt: prompt,
+      size: "2K",
+      response_format: "url",
+      image: referenceImages,
+      watermark: false,
+      sequential_image_generation: "disabled",
+    };
+    
+    logger.info('请求体:', JSON.stringify(requestBody, null, 2));
 
     try {
       // 调用豆包API
@@ -109,17 +127,7 @@ export class DoubaoService {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: this.model,
-          prompt: prompt,
-          size: "2K",
-          response_format: "url",
-          extra_body: {
-            image: referenceImages,
-            watermark: false,
-            sequential_image_generation: "disabled",
-          }
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {

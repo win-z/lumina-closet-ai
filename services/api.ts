@@ -167,7 +167,7 @@ export const aiApi = {
     });
   },
 
-  outfit: async (weather: string, occasion: string) => {
+  outfit: async (weather: string, occasion: string, topId?: string, bottomId?: string, shoesId?: string) => {
     return request<{
       topId?: string;
       bottomId?: string;
@@ -178,7 +178,7 @@ export const aiApi = {
       '/api/ai/outfit',
       {
         method: 'POST',
-        body: JSON.stringify({ weather, occasion }),
+        body: JSON.stringify({ weather, occasion, topId, bottomId, shoesId }),
       }
     );
   },

@@ -121,16 +121,9 @@ const Stylist: React.FC = () => {
 
     setLoading(true);
     try {
-      const result = await aiApi.outfit(weather, occasion);
-      // 使用手动选择的服装替换AI推荐的
-      const customSuggestion = {
-        ...result,
-        topId: selectedTop || undefined,
-        bottomId: selectedBottom || undefined,
-        shoesId: selectedShoes || undefined,
-        reasoning: `手动选择搭配：${selectedTop ? '上装' : ''}${selectedBottom ? ' + 下装' : ''}${selectedShoes ? ' + 鞋履' : ''}`,
-      };
-      setSuggestion(customSuggestion);
+      // 传递手动选择的服装ID，后端会直接进入手动选择模式
+      const result = await aiApi.outfit(weather, occasion, selectedTop, selectedBottom, selectedShoes);
+      setSuggestion(result);
     } catch (e) {
       console.error(e);
       alert("生成试穿图失败，请检查网络。");
