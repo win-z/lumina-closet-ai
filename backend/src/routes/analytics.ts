@@ -10,7 +10,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { ClothingItemModel, DiaryEntryModel } from '../models';
+import { ClothingItemModel, DiaryEntryModel, ClothingRecordModel, AnalysisResultModel } from '../models';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { ApiResponse, ClothingCategory } from '../types';
 
@@ -198,11 +198,171 @@ const getRecommendations = asyncHandler(async (req: Request, res: Response<ApiRe
   });
 });
 
+/**
+ * GET /api/analytics/latest
+ * 获取最新的分析结果
+ */
+const getLatestAnalysis = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+
+  const latestAnalysis = await AnalysisResultModel.findLatestByUserId(userId);
+
+  res.json({
+    success: true,
+    message: '获取成功',
+    data: latestAnalysis,
+  });
+});
+
+/**
+ * POST /api/analytics/save
+ * 保存分析结果
+ */
+const saveAnalysis = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+  const { categoryStats, colorStats, brandStats, priceStats, wearStats, aiAnalysis } = req.body;
+
+  const analysis = await AnalysisResultModel.create(userId, {
+    categoryStats: categoryStats || {},
+    colorStats: colorStats || {},
+    brandStats: brandStats || {},
+    priceStats: priceStats || { totalValue: 0, averagePrice: 0, maxPrice: 0, minPrice: 0 },
+    wearStats: wearStats || [],
+    aiAnalysis,
+  });
+
+  res.status(201).json({
+    success: true,
+    message: '分析结果保存成功',
+    data: analysis,
+  });
+});
+
+/**
+ * GET /api/analytics/brand
+ * 获取品牌统计
+ */
+const getBrandStats = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+  const wardrobe = await ClothingItemModel.findByUserId(userId);
+
+  const brandStats: Record<string, { count: number; totalValue: number; items: any[] }> = {};
+  wardrobe.forEach((item) => {
+    const brand = item.brand || '未标注品牌';
+    if (!brandStats[brand]) {
+      brandStats[brand] = { count: 0, totalValue: 0, items: [] };
+    }
+    brandStats[brand].count++;
+    brandStats[brand].totalValue += item.price || 0;
+    brandStats[brand].items.push({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      price: item.price,
+    });
+  });
+
+  // 转换为数组并排序
+  const sortedBrands = Object.entries(brandStats)
+    .map(([name, stats]) => ({ name, ...stats }))
+    .sort((a, b) => b.count - a.count);
+
+  res.json({
+    success: true,
+    message: '获取成功',
+    data: {
+      totalBrands: sortedBrands.length,
+      brands: sortedBrands,
+    },
+  });
+});
+
+/**
+ * GET /api/analytics/price
+ * 获取价格统计
+ */
+const getPriceStats = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+  const wardrobe = await ClothingItemModel.findByUserId(userId);
+
+  const itemsWithPrice = wardrobe.filter((item) => item.price && item.price > 0);
+  const totalValue = itemsWithPrice.reduce((sum, item) => sum + (item.price || 0), 0);
+
+  const stats = {
+    totalItems: wardrobe.length,
+    itemsWithPrice: itemsWithPrice.length,
+    totalValue,
+    averagePrice: itemsWithPrice.length > 0 ? Math.round(totalValue / itemsWithPrice.length) : 0,
+    maxPrice: itemsWithPrice.length > 0 ? Math.max(...itemsWithPrice.map((i) => i.price || 0)) : 0,
+    minPrice: itemsWithPrice.length > 0 ? Math.min(...itemsWithPrice.map((i) => i.price || 0)) : 0,
+    priceRanges: {
+      '0-100': itemsWithPrice.filter((i) => (i.price || 0) <= 100).length,
+      '100-300': itemsWithPrice.filter((i) => (i.price || 0) > 100 && (i.price || 0) <= 300).length,
+      '300-500': itemsWithPrice.filter((i) => (i.price || 0) > 300 && (i.price || 0) <= 500).length,
+      '500-1000': itemsWithPrice.filter((i) => (i.price || 0) > 500 && (i.price || 0) <= 1000).length,
+      '1000+': itemsWithPrice.filter((i) => (i.price || 0) > 1000).length,
+    },
+  };
+
+  res.json({
+    success: true,
+    message: '获取成功',
+    data: stats,
+  });
+});
+
+/**
+ * GET /api/analytics/wear
+ * 获取穿着频率统计
+ */
+const getWearFrequencyStats = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+
+  // 从穿着记录获取统计
+  const wearStats = await ClothingRecordModel.getWearStats(userId);
+  const clothingIds = wearStats.map((s) => s.clothingId);
+  const clothingItems = await ClothingItemModel.findByIds(clothingIds);
+
+  // 获取未穿着的衣物
+  const allWardrobe = await ClothingItemModel.findByUserId(userId);
+  const wornIds = new Set(clothingIds);
+  const unwornItems = allWardrobe.filter((item) => !wornIds.has(item.id));
+
+  const stats = {
+    totalWorn: wearStats.length,
+    totalUnworn: unwornItems.length,
+    mostWorn: wearStats.slice(0, 10).map((stat) => {
+      const item = clothingItems.find((i) => i.id === stat.clothingId);
+      return {
+        ...stat,
+        clothingItem: item,
+      };
+    }),
+    unwornItems: unwornItems.slice(0, 10).map((item) => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      lastWorn: item.lastWorn,
+    })),
+  };
+
+  res.json({
+    success: true,
+    message: '获取成功',
+    data: stats,
+  });
+});
+
 // ==================== 路由注册 ====================
 
 router.get('/summary', getSummary);
 router.get('/category', getCategoryStats);
 router.get('/usage', getUsageStats);
 router.get('/recommendations', getRecommendations);
+router.get('/latest', getLatestAnalysis);
+router.post('/save', saveAnalysis);
+router.get('/brand', getBrandStats);
+router.get('/price', getPriceStats);
+router.get('/wear', getWearFrequencyStats);
 
 export default router;

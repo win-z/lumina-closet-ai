@@ -51,6 +51,7 @@ import outfitsRoutes from './routes/outfits';
 import analyticsRoutes from './routes/analytics';
 import aiRoutes from './routes/ai';
 import healthRoutes from './routes/health';
+import clothingRecordsRoutes from './routes/clothingRecords';
 
 
 // ==================== 创建Express应用 ====================
@@ -132,6 +133,9 @@ app.use('/api/outfits', outfitsRoutes);
 
 // 数据分析
 app.use('/api/analytics', analyticsRoutes);
+
+// 穿着记录
+app.use('/api/clothing-records', clothingRecordsRoutes);
 
 // AI功能
 app.use('/api/ai', aiRoutes);

@@ -93,11 +93,12 @@ const BodyProfile: React.FC = () => {
           <h4 className="font-semibold text-slate-700">身形照片</h4>
           <div className="grid grid-cols-3 gap-3">
             {['photoFront', 'photoSide', 'photoBack'].map((view) => (
-              <div key={view} className="aspect-[3/4] bg-slate-50 rounded-lg overflow-hidden relative group">
+              <div key={view} className="aspect-[9/16] bg-slate-50 rounded-lg overflow-hidden relative group">
                 <ImageRenderer
                   src={profile?.[view as keyof typeof profile] as string}
                   alt={view}
-                  className="w-full h-full object-cover"
+                  aspectRatio="9/16"
+                  className="w-full h-full"
                   fallbackText={view === 'photoFront' ? '正面' : view === 'photoSide' ? '侧面' : '背面'}
                 />
                 <label className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">

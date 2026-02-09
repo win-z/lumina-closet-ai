@@ -123,37 +123,56 @@ export const userApi = {
   },
 };
 
-// ==================== 日记API ====================
+// ==================== 穿着记录API ====================
 
-export const diaryApi = {
-  getAll: async (page = 1, limit = 20) => {
+export const clothingRecordApi = {
+  getAll: async (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
     return request<{
       id: string;
       date: string;
-      weather: string;
-      mood: string;
-      notes: string;
-      photo: string | null;
       clothingIds: string[];
-    }[]>(
-      `/api/diary?page=${page}&limit=${limit}`
-    );
+      notes?: string;
+      clothingItems: any[];
+      createdAt: string;
+      updatedAt: string;
+    }[]>(`/api/clothing-records?${params.toString()}`);
   },
-  add: async (entry: {
-    date: string;
-    weather: string;
-    mood: string;
-    notes: string;
-    clothingIds: string[];
-    photo?: string | null;
-  }) => {
-    return request('/api/diary', {
+  getByDate: async (date: string) => {
+    return request<{
+      id: string;
+      date: string;
+      clothingIds: string[];
+      notes?: string;
+      clothingItems: any[];
+      createdAt: string;
+      updatedAt: string;
+    } | null>(`/api/clothing-records/date/${date}`);
+  },
+  create: async (data: { date: string; clothingIds: string[]; notes?: string }) => {
+    return request('/api/clothing-records', {
       method: 'POST',
-      body: JSON.stringify(entry),
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: string, data: { clothingIds?: string[]; notes?: string }) => {
+    return request(`/api/clothing-records/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   },
   delete: async (id: string) => {
-    return request(`/api/diary/${id}`, { method: 'DELETE' });
+    return request(`/api/clothing-records/${id}`, { method: 'DELETE' });
+  },
+  getStats: async () => {
+    return request<{
+      clothingId: string;
+      wearCount: number;
+      lastWorn?: string;
+      clothingItem?: any;
+    }[]>('/api/clothing-records/stats');
   },
 };
 
@@ -185,6 +204,85 @@ export const aiApi = {
 
   analyze: async () => {
     return request<{ analysis: string }>('/api/ai/analyze', { method: 'POST' });
+  },
+};
+
+// ==================== 数据分析API ====================
+
+export const analyticsApi = {
+  getSummary: async () => {
+    return request<{
+      totalItems: number;
+      totalValue: number;
+      diaryCount: number;
+      categoryStats: Record<string, number>;
+      colorStats: Record<string, number>;
+      tagStats: Record<string, number>;
+      topWorn: any[];
+    }>('/api/analytics/summary');
+  },
+  getCategory: async () => {
+    return request<Record<string, any>>('/api/analytics/category');
+  },
+  getBrand: async () => {
+    return request<{
+      totalBrands: number;
+      brands: { name: string; count: number; totalValue: number; items: any[] }[];
+    }>('/api/analytics/brand');
+  },
+  getPrice: async () => {
+    return request<{
+      totalItems: number;
+      itemsWithPrice: number;
+      totalValue: number;
+      averagePrice: number;
+      maxPrice: number;
+      minPrice: number;
+      priceRanges: Record<string, number>;
+    }>('/api/analytics/price');
+  },
+  getWearFrequency: async () => {
+    return request<{
+      totalWorn: number;
+      totalUnworn: number;
+      mostWorn: any[];
+      unwornItems: any[];
+    }>('/api/analytics/wear');
+  },
+  getLatest: async () => {
+    return request<{
+      id: string;
+      categoryStats: Record<string, number>;
+      colorStats: Record<string, number>;
+      brandStats: Record<string, number>;
+      priceStats: {
+        totalValue: number;
+        averagePrice: number;
+        maxPrice: number;
+        minPrice: number;
+      };
+      wearStats: any[];
+      aiAnalysis?: string;
+      createdAt: string;
+    } | null>('/api/analytics/latest');
+  },
+  save: async (data: {
+    categoryStats: Record<string, number>;
+    colorStats: Record<string, number>;
+    brandStats: Record<string, number>;
+    priceStats: {
+      totalValue: number;
+      averagePrice: number;
+      maxPrice: number;
+      minPrice: number;
+    };
+    wearStats: any[];
+    aiAnalysis?: string;
+  }) => {
+    return request('/api/analytics/save', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 };
 
@@ -273,19 +371,12 @@ class ApiService {
     return wardrobeApi.add(item);
   }
 
-  async getDiary(options?: { page?: number; limit?: number }) {
-    return diaryApi.getAll(options?.page, options?.limit);
+  async getClothingRecords(startDate?: string, endDate?: string) {
+    return clothingRecordApi.getAll(startDate, endDate);
   }
 
-  async addDiary(entry: {
-    date: string;
-    weather: string;
-    mood: string;
-    notes: string;
-    clothingIds: string[];
-    photo?: string | null;
-  }) {
-    return diaryApi.add(entry);
+  async addClothingRecord(data: { date: string; clothingIds: string[]; notes?: string }) {
+    return clothingRecordApi.create(data);
   }
 
   async updateProfile(data: Partial<BodyProfile>) {

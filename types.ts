@@ -68,4 +68,38 @@ export interface UserData {
     diary: DiaryEntry[];
 }
 
-export type ViewState = 'wardrobe' | 'profile' | 'stylist' | 'diary' | 'analytics';
+// ==================== 穿着记录 ====================
+export interface ClothingRecord {
+  id: string;
+  date: string; // YYYY-MM-DD
+  clothingIds: string[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==================== 穿着统计 ====================
+export interface ClothingWearStats {
+  clothingId: string;
+  wearCount: number;
+  lastWorn?: string;
+}
+
+// ==================== 分析结果 ====================
+export interface AnalysisResult {
+  id: string;
+  categoryStats: Record<string, number>;
+  colorStats: Record<string, number>;
+  brandStats: Record<string, number>;
+  priceStats: {
+    totalValue: number;
+    averagePrice: number;
+    maxPrice: number;
+    minPrice: number;
+  };
+  wearStats: ClothingWearStats[];
+  aiAnalysis?: string;
+  createdAt: string;
+}
+
+export type ViewState = 'wardrobe' | 'profile' | 'stylist' | 'calendar' | 'analytics';

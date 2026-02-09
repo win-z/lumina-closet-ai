@@ -9,8 +9,8 @@ import WardrobeGallery from './components/WardrobeGallery';
 import BodyProfileComponent from './components/BodyProfile';
 import Stylist from './components/Stylist';
 import Analytics from './components/Analytics';
-import Diary from './components/Diary';
-import { Shirt, User, Sparkles, BarChart2, BookHeart } from 'lucide-react';
+import ClothingCalendar from './components/ClothingCalendar';
+import { Shirt, User, Sparkles, BarChart2, CalendarDays } from 'lucide-react';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { Loader2, LogIn } from 'lucide-react';
 
@@ -76,8 +76,8 @@ const AppContent: React.FC = () => {
           {view === 'stylist' && user && (
             <Stylist />
           )}
-          {view === 'diary' && user && (
-            <Diary />
+          {view === 'calendar' && user && (
+            <ClothingCalendar />
           )}
           {view === 'analytics' && user && (
             <Analytics />
@@ -88,7 +88,7 @@ const AppContent: React.FC = () => {
         <nav className="fixed bottom-4 left-4 right-4 bg-white/90 backdrop-blur-lg rounded-2xl shadow-xl shadow-slate-200/50 border border-white/50 flex justify-between items-center px-4 py-3 z-50 max-w-[365px] mx-auto">
           <NavButton active={view === 'wardrobe'} onClick={() => setView('wardrobe')} icon={<Shirt size={22} />} label="衣橱" />
           <NavButton active={view === 'stylist'} onClick={() => setView('stylist')} icon={<Sparkles size={22} />} label="搭配" />
-          <NavButton active={view === 'diary'} onClick={() => setView('diary')} icon={<BookHeart size={22} />} label="日记" />
+          <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={<CalendarDays size={22} />} label="记录" />
           <NavButton active={view === 'analytics'} onClick={() => setView('analytics')} icon={<BarChart2 size={22} />} label="分析" />
           <NavButton active={view === 'profile'} onClick={() => setView('profile')} icon={<User size={22} />} label="我的" />
         </nav>

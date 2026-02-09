@@ -7,3 +7,5 @@ export { BodyProfileModel } from './BodyProfileModel';
 export { ClothingItemModel } from './ClothingItemModel';
 export { DiaryEntryModel } from './DiaryEntryModel';
 export { SavedOutfitModel } from './SavedOutfitModel';
+export { ClothingRecordModel } from './ClothingRecordModel';
+export { AnalysisResultModel } from './AnalysisResultModel';

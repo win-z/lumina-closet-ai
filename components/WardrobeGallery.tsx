@@ -216,25 +216,27 @@ const WardrobeGallery: React.FC = () => {
             </div>
             <div className="grid grid-cols-4 gap-3">
               {categoryItems.map(item => (
-                <div
-                  key={item.id}
-                  onClick={() => handleEdit(item)}
-                  className="aspect-[3/4] bg-slate-50 rounded-lg overflow-hidden cursor-pointer relative group shadow-sm border border-slate-50"
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(item.id);
-                    }}
-                    className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                  <ImageRenderer
-                    src={item.imageFront || item.imageBack}
-                    alt={item.name || '未命名'}
-                    className="w-full h-full object-cover mix-blend-multiply transition-transform group-hover:scale-105"
-                  />
+                <div key={item.id} className="space-y-1">
+                  {/* 图片区域 - 单击编辑，长按菜单 */}
+                  <div className="aspect-[9/16] bg-slate-50 rounded-lg overflow-hidden relative group shadow-sm border border-slate-50">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(item.id);
+                      }}
+                      className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                    <ImageRenderer
+                      src={item.imageFront || item.imageBack}
+                      alt={item.name || '未命名'}
+                      aspectRatio="9/16"
+                      onClick={() => handleEdit(item)}
+                      className="w-full h-full mix-blend-multiply transition-transform group-hover:scale-105"
+                    />
+                  </div>
+
                 </div>
               ))}
             </div>
@@ -258,8 +260,15 @@ const WardrobeGallery: React.FC = () => {
 
       {/* Upload Modal */}
       {isUploading && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto shadow-2xl mb-20">
+        <div className="fixed inset-0 z-[200] flex items-start justify-center">
+          {/* 遮罩背景 */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {
+            setIsUploading(false);
+            setIsEditing(false);
+            setEditingItem('');
+          }} />
+          {/* 弹窗内容 - 严格限制在上下菜单之间 */}
+          <div className="relative w-full max-w-[calc(393px-32px)] mx-4 mt-[72px] mb-[88px] max-h-[calc(852px-160px)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
               <h3 className="text-lg font-semibold text-slate-800">
@@ -277,7 +286,7 @@ const WardrobeGallery: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
               {/* Image Upload */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -415,13 +424,26 @@ const WardrobeGallery: React.FC = () => {
               </div>
 
               {/* Submit */}
-              <div className="pt-4 pb-20">
+              <div className="pt-4 pb-20 space-y-3">
                 <button
                   onClick={saveItem}
                   disabled={analyzing || !previewFront || !newItem.name}
                   className="w-full py-3 bg-gradient-to-r from-rose-500 to-indigo-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {analyzing ? '处理中...' : (editingItem ? '保存更改' : '确认入库')}
+                </button>
+                <button
+                  onClick={() => {
+                    setIsUploading(false);
+                    setIsEditing(false);
+                    setEditingItem('');
+                    setPreviewFront('');
+                    setPreviewBack('');
+                    setNewItem({ category: ClothingCategory.TOP, tags: [] });
+                  }}
+                  className="w-full py-3 bg-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-300 transition-all"
+                >
+                  取消
                 </button>
               </div>
             </div>

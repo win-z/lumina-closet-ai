@@ -10,7 +10,7 @@ import { useDiary } from '../src/hooks/useDiary';
 import { useApp } from '../src/context/AppContext';
 import { aiApi, outfitsApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
-import { Sparkles, CloudSun, Calendar, RefreshCw, BookmarkPlus, Trash2, Edit, Plus, X } from 'lucide-react';
+import { Sparkles, CloudSun, Calendar, RefreshCw, BookmarkPlus, Trash2, Edit, Plus, X, Camera, Upload } from 'lucide-react';
 import { ClothingCategory } from '../types';
 
 const Stylist: React.FC = () => {
@@ -33,10 +33,11 @@ const Stylist: React.FC = () => {
 
   // 手动选择模式
   const [manualMode, setManualMode] = useState(false);
-  const [selectedTop, setSelectedTop] = useState<string>('');
-  const [selectedBottom, setSelectedBottom] = useState<string>('');
-  const [selectedShoes, setSelectedShoes] = useState<string>('');
+  const [selectedTops, setSelectedTops] = useState<string[]>([]);
+  const [selectedBottoms, setSelectedBottoms] = useState<string[]>([]);
+  const [selectedShoes, setSelectedShoes] = useState<string[]>([]);
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
+  const [realPhoto, setRealPhoto] = useState<string>(''); // 上传的真实穿着图
 
   // 加载已保存搭配
   const loadSavedOutfits = async () => {
@@ -107,22 +108,55 @@ const Stylist: React.FC = () => {
     }
   };
 
-  // 手动选择生成试穿图
+  // 处理上传真实穿着照片
+  const handleRealPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setRealPhoto(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 切换选择（多选）
+  const toggleSelection = (id: string, selectedList: string[], setSelected: React.Dispatch<React.SetStateAction<string[]>>) => {
+    if (selectedList.includes(id)) {
+      setSelected(selectedList.filter(itemId => itemId !== id));
+    } else {
+      setSelected([...selectedList, id]);
+    }
+  };
+
+  // 手动选择生成试穿图或使用真实照片
   const handleManualGenerate = async () => {
-    if (!selectedTop && !selectedBottom) {
+    if (selectedTops.length === 0 && selectedBottoms.length === 0) {
       alert("请至少选择上装或下装！");
+      return;
+    }
+
+    // 如果上传了真实照片，直接使用
+    if (realPhoto) {
+      setSuggestion({
+        topIds: selectedTops,
+        bottomIds: selectedBottoms,
+        shoesIds: selectedShoes,
+        tryOnImage: realPhoto,
+        reasoning: "用户上传的真实穿着照片",
+      });
       return;
     }
     
     if (!profile?.photoFront) {
-      alert("请先上传身体档案照片！");
+      alert("请先上传身体档案照片，或上传真实穿着照片！");
       return;
     }
 
     setLoading(true);
     try {
-      // 传递手动选择的服装ID，后端会直接进入手动选择模式
-      const result = await aiApi.outfit(weather, occasion, selectedTop, selectedBottom, selectedShoes);
+      // 传递手动选择的服装ID（取第一个作为AI生成的主要参考）
+      const result = await aiApi.outfit(weather, occasion, selectedTops[0], selectedBottoms[0], selectedShoes[0]);
       setSuggestion(result);
     } catch (e) {
       console.error(e);
@@ -154,9 +188,9 @@ const Stylist: React.FC = () => {
       setSuggestion(null);
       setCustomName('');
       setCustomTags([]);
-      setSelectedTop('');
-      setSelectedBottom('');
-      setSelectedShoes('');
+      setSelectedTops([]);
+      setSelectedBottoms([]);
+      setSelectedShoes([]);
       setSelectedAccessories([]);
       setManualMode(false);
       setActiveTab('saved');
@@ -352,24 +386,25 @@ const Stylist: React.FC = () => {
                       <span className="text-sm text-slate-400">衣橱中没有上装</span>
                     ) : (
                       tops.map(item => (
-                        <button
+                        <div
                           key={item.id}
-                          onClick={() => setSelectedTop(selectedTop === item.id ? '' : item.id)}
-                          className={`flex-shrink-0 relative ${selectedTop === item.id ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
+                          className={`flex-shrink-0 relative ${selectedTops.includes(item.id) ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
                         >
-                          <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-50">
+                          <div className="aspect-[9/16] w-20 rounded-lg overflow-hidden bg-slate-50">
                             <ImageRenderer
                               src={item.imageFront}
                               alt={item.name}
-                              className="w-full h-full object-cover"
+                              aspectRatio="9/16"
+                              onClick={() => toggleSelection(item.id, selectedTops, setSelectedTops)}
+                              className="w-full h-full"
                             />
                           </div>
-                          {selectedTop === item.id && (
-                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                          {selectedTops.includes(item.id) && (
+                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center pointer-events-none">
                               <span className="text-indigo-600 font-bold text-lg">✓</span>
                             </div>
                           )}
-                        </button>
+                        </div>
                       ))
                     )}
                   </div>
@@ -383,24 +418,25 @@ const Stylist: React.FC = () => {
                       <span className="text-sm text-slate-400">衣橱中没有下装</span>
                     ) : (
                       bottoms.map(item => (
-                        <button
+                        <div
                           key={item.id}
-                          onClick={() => setSelectedBottom(selectedBottom === item.id ? '' : item.id)}
-                          className={`flex-shrink-0 relative ${selectedBottom === item.id ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
+                          className={`flex-shrink-0 relative ${selectedBottoms.includes(item.id) ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
                         >
-                          <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-50">
+                          <div className="aspect-[9/16] w-20 rounded-lg overflow-hidden bg-slate-50">
                             <ImageRenderer
                               src={item.imageFront}
                               alt={item.name}
-                              className="w-full h-full object-cover"
+                              aspectRatio="9/16"
+                              onClick={() => toggleSelection(item.id, selectedBottoms, setSelectedBottoms)}
+                              className="w-full h-full"
                             />
                           </div>
-                          {selectedBottom === item.id && (
-                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                          {selectedBottoms.includes(item.id) && (
+                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center pointer-events-none">
                               <span className="text-indigo-600 font-bold text-lg">✓</span>
                             </div>
                           )}
-                        </button>
+                        </div>
                       ))
                     )}
                   </div>
@@ -414,64 +450,107 @@ const Stylist: React.FC = () => {
                       <span className="text-sm text-slate-400">衣橱中没有鞋履</span>
                     ) : (
                       shoes.map(item => (
-                        <button
+                        <div
                           key={item.id}
-                          onClick={() => setSelectedShoes(selectedShoes === item.id ? '' : item.id)}
-                          className={`flex-shrink-0 relative ${selectedShoes === item.id ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
+                          className={`flex-shrink-0 relative ${selectedShoes.includes(item.id) ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
                         >
-                          <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-50">
+                          <div className="aspect-[9/16] w-20 rounded-lg overflow-hidden bg-slate-50">
                             <ImageRenderer
                               src={item.imageFront}
                               alt={item.name}
-                              className="w-full h-full object-cover"
+                              aspectRatio="9/16"
+                              onClick={() => toggleSelection(item.id, selectedShoes, setSelectedShoes)}
+                              className="w-full h-full"
                             />
                           </div>
-                          {selectedShoes === item.id && (
-                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                          {selectedShoes.includes(item.id) && (
+                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center pointer-events-none">
                               <span className="text-indigo-600 font-bold text-lg">✓</span>
                             </div>
                           )}
-                        </button>
+                        </div>
                       ))
                     )}
                   </div>
                 </div>
 
                 {/* 已选择展示 */}
-                {(selectedTop || selectedBottom || selectedShoes) && (
+                {(selectedTops.length > 0 || selectedBottoms.length > 0 || selectedShoes.length > 0) && (
                   <div className="bg-indigo-50 rounded-xl p-3">
                     <p className="text-sm font-medium text-indigo-700 mb-2">已选择：</p>
                     <div className="flex flex-wrap gap-2">
-                      {selectedTop && (
-                        <span className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
-                          上装: {getById(selectedTop)?.name}
+                      {selectedTops.map(id => (
+                        <span key={id} className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
+                          上装: {getById(id)?.name}
                         </span>
-                      )}
-                      {selectedBottom && (
-                        <span className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
-                          下装: {getById(selectedBottom)?.name}
+                      ))}
+                      {selectedBottoms.map(id => (
+                        <span key={id} className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
+                          下装: {getById(id)?.name}
                         </span>
-                      )}
-                      {selectedShoes && (
-                        <span className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
-                          鞋履: {getById(selectedShoes)?.name}
+                      ))}
+                      {selectedShoes.map(id => (
+                        <span key={id} className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
+                          鞋履: {getById(id)?.name}
                         </span>
-                      )}
+                      ))}
                     </div>
                   </div>
                 )}
 
+                {/* 上传真实穿着照片 */}
+                <div className="border-t border-slate-200 pt-4">
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">
+                    <Upload size={14} className="inline mr-1" />
+                    上传真实穿着照片（可选）
+                  </label>
+                  
+                  {realPhoto ? (
+                    <div className="relative aspect-[9/16] rounded-xl overflow-hidden bg-slate-100">
+                      <ImageRenderer
+                        src={realPhoto}
+                        alt="真实穿着照片"
+                        aspectRatio="9/16"
+                        className="w-full h-full"
+                      />
+                      <button
+                        onClick={() => setRealPhoto('')}
+                        className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                      <div className="absolute bottom-2 left-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-lg text-center">
+                        将使用此照片作为穿着效果
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="aspect-[9/16] bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center relative overflow-hidden">
+                      <Camera size={32} className="text-slate-400 mb-2" />
+                      <span className="text-sm text-slate-500">点击上传真实穿着照</span>
+                      <span className="text-xs text-slate-400 mt-1">或使用AI生成试穿图</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleRealPhotoUpload}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={handleManualGenerate}
-                  disabled={loading || (!selectedTop && !selectedBottom)}
+                  disabled={loading || (selectedTops.length === 0 && selectedBottoms.length === 0)}
                   className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <RefreshCw size={20} className="animate-spin" />
+                  ) : realPhoto ? (
+                    <Camera size={20} />
                   ) : (
                     <Sparkles size={20} />
                   )}
-                  {loading ? '生成中...' : '生成试穿图'}
+                  {loading ? '生成中...' : realPhoto ? '使用真实照片' : '生成试穿图'}
                 </button>
               </div>
             )}
@@ -557,11 +636,12 @@ const Stylist: React.FC = () => {
               <div className="flex gap-3 overflow-x-auto pb-2">
                 {suggestion.topId && (
                   <div className="flex-shrink-0">
-                    <div className="w-24 h-32 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                    <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
                       <ImageRenderer
                         src={getItem(suggestion.topId)?.imageFront}
                         alt="上装"
-                        className="w-full h-full object-cover"
+                        aspectRatio="9/16"
+                              className="w-full h-full"
                       />
                     </div>
                     <span className="text-xs text-slate-500">上装</span>
@@ -569,11 +649,12 @@ const Stylist: React.FC = () => {
                 )}
                 {suggestion.bottomId && (
                   <div className="flex-shrink-0">
-                    <div className="w-24 h-32 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                    <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
                       <ImageRenderer
                         src={getItem(suggestion.bottomId)?.imageFront}
                         alt="下装"
-                        className="w-full h-full object-cover"
+                        aspectRatio="9/16"
+                              className="w-full h-full"
                       />
                     </div>
                     <span className="text-xs text-slate-500">下装</span>
@@ -581,11 +662,12 @@ const Stylist: React.FC = () => {
                 )}
                 {suggestion.shoesId && (
                   <div className="flex-shrink-0">
-                    <div className="w-24 h-32 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                    <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
                       <ImageRenderer
                         src={getItem(suggestion.shoesId)?.imageFront}
                         alt="鞋履"
-                        className="w-full h-full object-cover"
+                        aspectRatio="9/16"
+                              className="w-full h-full"
                       />
                     </div>
                     <span className="text-xs text-slate-500">鞋履</span>
@@ -597,11 +679,12 @@ const Stylist: React.FC = () => {
               {suggestion.tryOnImage && (
                 <div>
                   <p className="text-sm font-medium text-slate-700 mb-2">试穿效果</p>
-                  <div className="w-full rounded-xl overflow-hidden bg-slate-100">
+                  <div className="w-full aspect-[9/16] rounded-xl overflow-hidden bg-slate-100">
                     <ImageRenderer
                       src={suggestion.tryOnImage}
                       alt="试穿效果"
-                      className="w-full h-auto"
+                      aspectRatio="9/16"
+                      className="w-full h-full"
                     />
                   </div>
                 </div>
@@ -618,7 +701,7 @@ const Stylist: React.FC = () => {
 
       {/* 已保存搭配Tab */}
       {activeTab === 'saved' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {savedOutfits.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
               <BookmarkPlus size={48} className="mx-auto mb-4 text-slate-300" />
@@ -626,188 +709,214 @@ const Stylist: React.FC = () => {
               <p className="text-sm text-slate-400">切换到"生成搭配"标签，让AI为你推荐搭配</p>
             </div>
           ) : (
-            savedOutfits.map((entry: any) => (
-              <div key={entry.id} className="bg-white rounded-2xl shadow-lg p-4">
-                {editingOutfit?.id === entry.id ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium text-slate-700 mb-1 block">搭配名称</label>
-                      <input
-                        type="text"
-                        value={customName}
-                        onChange={(e) => setCustomName(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-indigo-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-slate-700 mb-2 block">标签</label>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {customTags.map(tag => (
-                          <button
-                            key={tag}
-                            onClick={() => removeTag(tag)}
-                            className="px-3 py-1 bg-indigo-100 text-indigo-600 rounded-full text-sm"
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') addTag();
-                          }}
-                          className="flex-1 px-3 py-1 border border-slate-200 rounded-lg text-sm focus:border-indigo-500 outline-none"
+            Object.entries(savedOutfits.reduce<Record<string, any[]>>((acc, outfit) => {
+              // 按标签分组
+              if (outfit.tags && outfit.tags.length > 0) {
+                outfit.tags.forEach((tag: string) => {
+                  if (!acc[tag]) acc[tag] = [];
+                  acc[tag].push(outfit);
+                });
+              } else {
+                if (!acc['未分类']) acc['未分类'] = [];
+                acc['未分类'].push(outfit);
+              }
+              return acc;
+            }, {})).map(([tag, outfits]: [string, any[]]) => (
+              <div key={tag} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                    {tag} · {outfits.length}套
+                  </h3>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {outfits.map((outfit: any) => (
+                    <div
+                      key={outfit.id}
+                      onClick={() => handleEditOutfit(outfit)}
+                      className="aspect-[9/16] bg-slate-50 rounded-lg overflow-hidden cursor-pointer relative group shadow-sm border border-slate-50"
+                    >
+                      {/* 删除按钮 */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteOutfit(outfit.id);
+                        }}
+                        className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                      
+                      {/* 试穿效果图 */}
+                      {outfit.tryonImage ? (
+                        <ImageRenderer
+                          src={outfit.tryonImage}
+                          alt={outfit.name || '搭配'}
+                          aspectRatio="9/16"
+                          className="w-full h-full mix-blend-multiply transition-transform group-hover:scale-105"
                         />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                          <BookmarkPlus size={24} className="mb-1 opacity-50" />
+                          <span className="text-xs">{outfit.name || '搭配'}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+          
+          {/* 编辑搭配弹窗 */}
+          {editingOutfit && (
+            <div className="fixed inset-0 z-[200] flex items-start justify-center">
+              {/* 遮罩背景 */}
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {
+                setEditingOutfit(null);
+                setCustomName('');
+                setCustomTags([]);
+              }} />
+              {/* 弹窗内容 - 严格限制在上下菜单之间 */}
+              <div className="relative w-full max-w-[calc(393px-32px)] mx-4 mt-[72px] mb-[88px] max-h-[calc(852px-160px)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                  <h3 className="text-lg font-semibold text-slate-800">编辑搭配</h3>
+                  <button
+                    onClick={() => {
+                      setEditingOutfit(null);
+                      setCustomName('');
+                      setCustomTags([]);
+                    }}
+                    className="p-2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 mb-1 block">搭配名称</label>
+                    <input
+                      type="text"
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      placeholder="给搭配起个名字..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">标签</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {customTags.map(tag => (
                         <button
-                          onClick={addTag}
-                          className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-sm"
+                          key={tag}
+                          onClick={() => removeTag(tag)}
+                          className="px-3 py-1 bg-indigo-100 text-indigo-600 rounded-full text-sm hover:bg-indigo-200"
                         >
-                          添加
+                          {tag} <span className="ml-1">×</span>
                         </button>
-                      </div>
+                      ))}
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={handleSaveEditedOutfit}
-                        className="flex-1 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
-                      >
-                        保存更改
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingOutfit(null);
-                          setCustomName('');
-                          setCustomTags([]);
+                      <input
+                        type="text"
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') addTag();
                         }}
-                        className="flex-1 py-2 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300"
+                        placeholder="添加标签..."
+                        className="flex-1 px-3 py-1 border border-slate-200 rounded-lg text-sm focus:border-indigo-500 outline-none"
+                      />
+                      <button
+                        onClick={addTag}
+                        className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-sm hover:bg-slate-200"
                       >
-                        取消
+                        添加
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-semibold text-slate-800">{entry.name || '未命名搭配'}</h4>
-                        <p className="text-xs text-slate-500">{entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : ''}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEditOutfit(entry)}
-                          className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteOutfit(entry.id)}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                          title="删除搭配"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                  
+                  {/* 显示搭配详情 */}
+                  {editingOutfit.tryonImage && (
+                    <div className="aspect-[9/16] rounded-xl overflow-hidden bg-slate-100">
+                      <ImageRenderer
+                        src={editingOutfit.tryonImage}
+                        alt="试穿效果"
+                        aspectRatio="9/16"
+                        className="w-full h-full"
+                      />
                     </div>
-
-                    {/* Tags */}
-                    {entry.tags && entry.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {entry.tags.map((tag: string) => (
-                          <span key={tag} className="px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full text-xs">
-                            {tag}
-                          </span>
-                        ))}
+                  )}
+                  
+                  {/* 单品列表 */}
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {editingOutfit.topId && getById(editingOutfit.topId) && (
+                      <div className="flex-shrink-0">
+                        <div className="aspect-[9/16] w-16 rounded-lg overflow-hidden bg-slate-50">
+                          <ImageRenderer
+                            src={getById(editingOutfit.topId)?.imageFront}
+                            alt="上装"
+                            aspectRatio="9/16"
+                            className="w-full h-full"
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500 text-center block">上装</span>
                       </div>
                     )}
-
-                    {/* Weather & Occasion */}
-                    <div className="flex gap-2 mb-2 text-xs text-slate-500">
-                      {entry.weather && <span>🌤️ {entry.weather}</span>}
-                      {entry.occasion && <span>📅 {entry.occasion}</span>}
-                    </div>
-
-                    {/* 试穿效果图 */}
-                    {entry.tryonImage && (
-                      <div className="w-full rounded-xl overflow-hidden bg-slate-100 mb-3">
-                        <ImageRenderer
-                          src={entry.tryonImage}
-                          alt="试穿效果"
-                          className="w-full h-auto"
-                        />
+                    {editingOutfit.bottomId && getById(editingOutfit.bottomId) && (
+                      <div className="flex-shrink-0">
+                        <div className="aspect-[9/16] w-16 rounded-lg overflow-hidden bg-slate-50">
+                          <ImageRenderer
+                            src={getById(editingOutfit.bottomId)?.imageFront}
+                            alt="下装"
+                            aspectRatio="9/16"
+                            className="w-full h-full"
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500 text-center block">下装</span>
                       </div>
                     )}
-
-                    {/* Clothing Items */}
-                    <div className="flex gap-3 overflow-x-auto pb-2">
-                      {/* Top */}
-                      {entry.topId && (() => {
-                        const item = getById(entry.topId);
-                        if (!item) return null;
-                        return (
-                          <div key={entry.topId} className="flex-shrink-0">
-                            <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
-                              <ImageRenderer
-                                src={item.imageFront}
-                                alt={item.name}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <span className="text-xs text-slate-500 truncate w-20 text-center block">上装</span>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Bottom */}
-                      {entry.bottomId && (() => {
-                        const item = getById(entry.bottomId);
-                        if (!item) return null;
-                        return (
-                          <div key={entry.bottomId} className="flex-shrink-0">
-                            <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
-                              <ImageRenderer
-                                src={item.imageFront}
-                                alt={item.name}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <span className="text-xs text-slate-500 truncate w-20 text-center block">下装</span>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Shoes */}
-                      {entry.shoesId && (() => {
-                        const item = getById(entry.shoesId);
-                        if (!item) return null;
-                        return (
-                          <div key={entry.shoesId} className="flex-shrink-0">
-                            <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
-                              <ImageRenderer
-                                src={item.imageFront}
-                                alt={item.name}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <span className="text-xs text-slate-500 truncate w-20 text-center block">鞋履</span>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Reasoning */}
-                    {entry.reasoning && (
-                      <div className="bg-slate-50 rounded-xl p-3 mt-2">
-                        <p className="text-xs text-slate-600">{entry.reasoning}</p>
+                    {editingOutfit.shoesId && getById(editingOutfit.shoesId) && (
+                      <div className="flex-shrink-0">
+                        <div className="aspect-[9/16] w-16 rounded-lg overflow-hidden bg-slate-50">
+                          <ImageRenderer
+                            src={getById(editingOutfit.shoesId)?.imageFront}
+                            alt="鞋履"
+                            aspectRatio="9/16"
+                            className="w-full h-full"
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500 text-center block">鞋履</span>
                       </div>
                     )}
-                  </>
-                )}
+                  </div>
+                  
+                  {editingOutfit.reasoning && (
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <p className="text-xs text-slate-600">{editingOutfit.reasoning}</p>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={handleSaveEditedOutfit}
+                      className="flex-1 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all"
+                    >
+                      保存更改
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingOutfit(null);
+                        setCustomName('');
+                        setCustomTags([]);
+                      }}
+                      className="flex-1 py-3 bg-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-300"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
               </div>
-            ))
+            </div>
           )}
         </div>
       )}

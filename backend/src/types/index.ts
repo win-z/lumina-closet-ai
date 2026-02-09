@@ -153,8 +153,44 @@ export interface RegisterRequest {
   username: string;
 }
 
+// ==================== 穿着记录 ====================
+export interface ClothingRecord {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  clothingIds: string[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==================== 穿着统计 ====================
+export interface ClothingWearStats {
+  clothingId: string;
+  wearCount: number;
+  lastWorn?: string;
+}
+
+// ==================== 分析结果 ====================
+export interface AnalysisResult {
+  id: string;
+  userId: string;
+  categoryStats: Record<string, number>;
+  colorStats: Record<string, number>;
+  brandStats: Record<string, number>;
+  priceStats: {
+    totalValue: number;
+    averagePrice: number;
+    maxPrice: number;
+    minPrice: number;
+  };
+  wearStats: ClothingWearStats[];
+  aiAnalysis?: string;
+  createdAt: string;
+}
+
 // ==================== 视图状态 ====================
-export type ViewState = 'wardrobe' | 'profile' | 'stylist' | 'diary' | 'analytics';
+export type ViewState = 'wardrobe' | 'profile' | 'stylist' | 'calendar' | 'analytics';
 
 // ==================== AI服务类型 ====================
 export interface AutoTagResult {
