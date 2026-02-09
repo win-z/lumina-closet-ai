@@ -171,14 +171,19 @@ const Stylist: React.FC = () => {
 
     try {
       console.log('开始保存搭配...');
+      // 处理多选情况，将数组转为逗号分隔的字符串存储，或只取第一个
+      const topId = suggestion.topIds ? suggestion.topIds[0] : suggestion.topId;
+      const bottomId = suggestion.bottomIds ? suggestion.bottomIds[0] : suggestion.bottomId;
+      const shoesId = suggestion.shoesIds ? suggestion.shoesIds[0] : suggestion.shoesId;
+      
       await outfitsApi.save({
         name: customName || undefined,
         tags: customTags,
         weather,
         occasion,
-        topId: suggestion.topId,
-        bottomId: suggestion.bottomId,
-        shoesId: suggestion.shoesId,
+        topId,
+        bottomId,
+        shoesId,
         reasoning: suggestion.reasoning,
         tryonImage: suggestion.tryOnImage || undefined,
       });
@@ -632,46 +637,107 @@ const Stylist: React.FC = () => {
                 </div>
               </div>
 
-              {/* Outfit Items */}
+              {/* Outfit Items - 支持单选和多选 */}
               <div className="flex gap-3 overflow-x-auto pb-2">
-                {suggestion.topId && (
-                  <div className="flex-shrink-0">
-                    <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
-                      <ImageRenderer
-                        src={getItem(suggestion.topId)?.imageFront}
-                        alt="上装"
-                        aspectRatio="9/16"
+                {/* 上装 - 支持单选(suggestion.topId)或多选(suggestion.topIds) */}
+                {(suggestion.topId || suggestion.topIds?.length > 0) && (
+                  <>
+                    {suggestion.topIds ? (
+                      // 多选模式
+                      suggestion.topIds.map((id: string) => (
+                        <div key={id} className="flex-shrink-0">
+                          <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                            <ImageRenderer
+                              src={getItem(id)?.imageFront}
+                              alt="上装"
+                              aspectRatio="9/16"
                               className="w-full h-full"
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500">上装</span>
-                  </div>
+                            />
+                          </div>
+                          <span className="text-xs text-slate-500">{getItem(id)?.name || '上装'}</span>
+                        </div>
+                      ))
+                    ) : (
+                      // 单选模式
+                      <div className="flex-shrink-0">
+                        <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                          <ImageRenderer
+                            src={getItem(suggestion.topId)?.imageFront}
+                            alt="上装"
+                            aspectRatio="9/16"
+                            className="w-full h-full"
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500">上装</span>
+                      </div>
+                    )}
+                  </>
                 )}
-                {suggestion.bottomId && (
-                  <div className="flex-shrink-0">
-                    <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
-                      <ImageRenderer
-                        src={getItem(suggestion.bottomId)?.imageFront}
-                        alt="下装"
-                        aspectRatio="9/16"
+                
+                {/* 下装 - 支持单选或多选 */}
+                {(suggestion.bottomId || suggestion.bottomIds?.length > 0) && (
+                  <>
+                    {suggestion.bottomIds ? (
+                      suggestion.bottomIds.map((id: string) => (
+                        <div key={id} className="flex-shrink-0">
+                          <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                            <ImageRenderer
+                              src={getItem(id)?.imageFront}
+                              alt="下装"
+                              aspectRatio="9/16"
                               className="w-full h-full"
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500">下装</span>
-                  </div>
+                            />
+                          </div>
+                          <span className="text-xs text-slate-500">{getItem(id)?.name || '下装'}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex-shrink-0">
+                        <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                          <ImageRenderer
+                            src={getItem(suggestion.bottomId)?.imageFront}
+                            alt="下装"
+                            aspectRatio="9/16"
+                            className="w-full h-full"
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500">下装</span>
+                      </div>
+                    )}
+                  </>
                 )}
-                {suggestion.shoesId && (
-                  <div className="flex-shrink-0">
-                    <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
-                      <ImageRenderer
-                        src={getItem(suggestion.shoesId)?.imageFront}
-                        alt="鞋履"
-                        aspectRatio="9/16"
+                
+                {/* 鞋履 - 支持单选或多选 */}
+                {(suggestion.shoesId || suggestion.shoesIds?.length > 0) && (
+                  <>
+                    {suggestion.shoesIds ? (
+                      suggestion.shoesIds.map((id: string) => (
+                        <div key={id} className="flex-shrink-0">
+                          <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                            <ImageRenderer
+                              src={getItem(id)?.imageFront}
+                              alt="鞋履"
+                              aspectRatio="9/16"
                               className="w-full h-full"
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500">鞋履</span>
-                  </div>
+                            />
+                          </div>
+                          <span className="text-xs text-slate-500">{getItem(id)?.name || '鞋履'}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex-shrink-0">
+                        <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                          <ImageRenderer
+                            src={getItem(suggestion.shoesId)?.imageFront}
+                            alt="鞋履"
+                            aspectRatio="9/16"
+                            className="w-full h-full"
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500">鞋履</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 

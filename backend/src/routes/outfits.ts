@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { SavedOutfitModel, ClothingItemModel } from '../models';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { ApiResponse, SavedOutfit } from '../types';
+import { cosService, CosService } from '../services/cos';
 import { z } from 'zod';
 
 const router = Router();
@@ -73,6 +74,19 @@ const createOutfit = asyncHandler(async (req: Request, res: Response<ApiResponse
     if (!item) throw Errors.badRequest('鞋履不存在或无权访问');
   }
 
+  // 处理图片：如果是 base64，上传到 COS
+  let tryonImageUrl = outfitData.tryonImage;
+  if (tryonImageUrl && tryonImageUrl.startsWith('data:image')) {
+    try {
+      // 上传 base64 图片到 COS
+      const uploadResult = await CosService.uploadBase64Image(tryonImageUrl, userId);
+      tryonImageUrl = uploadResult.url;
+    } catch (err) {
+      console.error('上传搭配图片失败:', err);
+      throw Errors.badRequest('图片上传失败，请重试');
+    }
+  }
+
   const outfit = await SavedOutfitModel.create(userId, {
     name: outfitData.name,
     tags: outfitData.tags || [],
@@ -82,7 +96,7 @@ const createOutfit = asyncHandler(async (req: Request, res: Response<ApiResponse
     bottomId: outfitData.bottomId,
     shoesId: outfitData.shoesId,
     reasoning: outfitData.reasoning,
-    tryonImage: outfitData.tryonImage,
+    tryonImage: tryonImageUrl,
   });
 
   res.status(201).json({
