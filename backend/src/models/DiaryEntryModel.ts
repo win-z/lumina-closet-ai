@@ -17,9 +17,9 @@ export class DiaryEntryModel {
 
     await execute(
       `INSERT INTO diary_entries (
-        id, user_id, date, weather, mood, notes, photo, clothing_ids, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, userId, data.date, data.weather, data.mood, data.notes || null, data.photo || null, JSON.stringify(data.clothingIds), now, now]
+        id, user_id, date, weather, mood, notes, photo, clothing_ids, outfit_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, userId, data.date, data.weather, data.mood, data.notes || null, data.photo || null, JSON.stringify(data.clothingIds), data.outfitId || null, now, now]
     );
 
     return {
@@ -64,7 +64,7 @@ export class DiaryEntryModel {
     orderBy?: 'date' | 'createdAt';
     order?: 'ASC' | 'DESC';
   }): Promise<DiaryEntry[]> {
-    let queryStr = `SELECT id, user_id as userId, date, weather, mood, notes, photo,
+    let queryStr = `SELECT id, user_id as userId, date, weather, mood, notes, photo, outfit_id,
             clothing_ids, created_at as createdAt, updated_at as updatedAt
      FROM diary_entries
      WHERE user_id = ?`;
@@ -92,12 +92,114 @@ export class DiaryEntryModel {
       params.push(options.offset);
     }
 
-    const rows = await query<DiaryEntry & { clothingIds: string }>(queryStr, params);
+    const rows = await query<DiaryEntry & { clothingIds: string; outfitId?: string }>(queryStr, params);
 
     return rows.map(row => ({
       ...row,
       clothingIds: JSON.parse(row.clothingIds || '[]'),
+      outfitId: row.outfitId,
     }));
+  }
+
+  /**
+   * 根据用户ID和日期查找日记（唯一）
+   */
+  static async findByDate(userId: string, date: string): Promise<DiaryEntry | null> {
+    const queryStr = `SELECT id, user_id as userId, date, weather, mood, notes, photo, outfit_id,
+            clothing_ids, created_at as createdAt, updated_at as updatedAt
+     FROM diary_entries
+     WHERE user_id = ? AND date = ?`;
+
+    const row = await queryOne<DiaryEntry & { clothingIds: string; outfitId?: string }>(queryStr, [userId, date]);
+    if (!row) return null;
+
+    return {
+      ...row,
+      clothingIds: JSON.parse(row.clothingIds || '[]'),
+      outfitId: row.outfitId,
+    };
+  }
+
+  /**
+   * 创建或更新日记（UPSERT）
+   * 如果该日期已有记录则更新，否则创建
+   */
+  static async upsert(userId: string, data: {
+    date: string;
+    weather?: string;
+    mood?: string;
+    notes?: string;
+    photo?: string;
+    clothingIds?: string[];
+    outfitId?: string;
+  }): Promise<DiaryEntry> {
+    // 先查找是否已存在
+    const existing = await this.findByDate(userId, data.date);
+
+    if (existing) {
+      // 更新现有记录
+      const updateData: Partial<DiaryEntry> = {};
+      if (data.weather !== undefined) updateData.weather = data.weather;
+      if (data.mood !== undefined) updateData.mood = data.mood;
+      if (data.notes !== undefined) updateData.notes = data.notes;
+      if (data.photo !== undefined) updateData.photo = data.photo;
+      if (data.clothingIds !== undefined) updateData.clothingIds = data.clothingIds;
+      if (data.outfitId !== undefined) (updateData as any).outfitId = data.outfitId;
+
+      const updated = await this.update(existing.id, userId, updateData);
+      if (!updated) throw new Error('更新日记失败');
+      return updated;
+    } else {
+      // 创建新记录
+      return this.create(userId, {
+        date: data.date,
+        weather: data.weather || '',
+        mood: data.mood || '',
+        notes: data.notes || '',
+        photo: data.photo,
+        clothingIds: data.clothingIds || [],
+        outfitId: data.outfitId,
+      });
+    }
+  }
+
+  /**
+   * 获取某月有日记的日期列表（用于日历标记）
+   */
+  static async getDatesByMonth(userId: string, year: number, month: number): Promise<{
+    date: string;
+    hasPhoto: boolean;
+    hasOutfit: boolean;
+    mood?: string;
+  }[]> {
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endDate = month === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+
+    const rows = await query<{
+      date: string;
+      photo: string | null;
+      outfit_id: string | null;
+      mood: string;
+    }>(
+      `SELECT date, photo, outfit_id, mood FROM diary_entries
+       WHERE user_id = ? AND date >= ? AND date < ?
+       ORDER BY date`,
+      [userId, startDate, endDate]
+    );
+
+    return rows.map(row => {
+      // 确保日期格式为 YYYY-MM-DD
+      const dateObj = new Date(row.date);
+      const formattedDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+      return {
+        date: formattedDate,
+        hasPhoto: !!row.photo,
+        hasOutfit: !!row.outfit_id,
+        mood: row.mood || undefined,
+      };
+    });
   }
 
   /**
@@ -120,7 +222,7 @@ export class DiaryEntryModel {
     const now = formatDate();
 
     const allowedFields: (keyof typeof data)[] = [
-      'date', 'weather', 'mood', 'notes', 'photo', 'clothingIds'
+      'date', 'weather', 'mood', 'notes', 'photo', 'clothingIds', 'outfitId'
     ];
 
     for (const field of allowedFields) {

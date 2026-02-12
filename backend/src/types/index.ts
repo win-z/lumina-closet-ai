@@ -26,7 +26,6 @@ export enum Season {
 export interface ClothingItem {
   id: string;
   imageFront?: string;        // 图片URL或Base64
-  imageBack?: string;        // 可选的背面图片
   category: ClothingCategory;
   name: string;
   color: string;
@@ -73,6 +72,7 @@ export interface DiaryEntry {
   notes: string;
   clothingIds: string[];
   photo?: string;
+  outfitId?: string;  // 关联的已保存搭配ID
   createdAt: string;
   updatedAt: string;
 }
@@ -85,6 +85,7 @@ export interface SavedOutfit {
   tags: string[];
   weather?: string;
   occasion?: string;
+  dressId?: string;
   topId?: string;
   bottomId?: string;
   shoesId?: string;

@@ -123,6 +123,93 @@ export const userApi = {
   },
 };
 
+// ==================== 日记API ====================
+
+export const diaryApi = {
+  getAll: async (page = 1, limit = 20, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    params.set('page', page.toString());
+    params.set('limit', limit.toString());
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    return request<{
+      id: string;
+      date: string;
+      weather: string;
+      mood: string;
+      notes: string;
+      clothingIds: string[];
+      clothingItems: any[];
+      photo?: string;
+      outfitId?: string;
+      createdAt: string;
+      updatedAt: string;
+    }[]>(`/api/diary?${params.toString()}`);
+  },
+  getByDate: async (date: string) => {
+    return request<{
+      id: string;
+      date: string;
+      weather: string;
+      mood: string;
+      notes: string;
+      clothingIds: string[];
+      clothingItems: any[];
+      photo?: string;
+      outfitId?: string;
+      createdAt: string;
+      updatedAt: string;
+    } | null>(`/api/diary/date/${date}`);
+  },
+  getCalendar: async (year: number, month: number) => {
+    return request<{
+      year: number;
+      month: number;
+      dates: {
+        date: string;
+        hasPhoto: boolean;
+        hasOutfit: boolean;
+        mood?: string;
+      }[];
+    }>(`/api/diary/calendar?year=${year}&month=${month}`);
+  },
+  upsert: async (data: {
+    date: string;
+    weather?: string;
+    mood?: string;
+    notes?: string;
+    clothingIds?: string[];
+    photo?: string;
+    outfitId?: string;
+  }) => {
+    return request<{
+      id: string;
+      date: string;
+      weather: string;
+      mood: string;
+      notes: string;
+      clothingIds: string[];
+      photo?: string;
+      outfitId?: string;
+      createdAt: string;
+      updatedAt: string;
+    }>('/api/diary/upsert', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  delete: async (id: string) => {
+    return request(`/api/diary/${id}`, { method: 'DELETE' });
+  },
+  getMonthlyStats: async (year: number, month: number) => {
+    return request<{
+      totalEntries: number;
+      uniqueOutfits: number;
+      avgMood: string;
+    }>(`/api/diary/stats/monthly?year=${year}&month=${month}`);
+  },
+};
+
 // ==================== 穿着记录API ====================
 
 export const clothingRecordApi = {
@@ -296,6 +383,7 @@ export const outfitsApi = {
       tags: string[];
       weather?: string;
       occasion?: string;
+      dressId?: string;
       topId?: string;
       bottomId?: string;
       shoesId?: string;
@@ -309,6 +397,7 @@ export const outfitsApi = {
     tags: string[];
     weather?: string;
     occasion?: string;
+    dressId?: string;
     topId?: string;
     bottomId?: string;
     shoesId?: string;

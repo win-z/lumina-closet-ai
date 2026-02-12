@@ -152,6 +152,94 @@ const deleteDiary = asyncHandler(async (req: Request, res: Response<ApiResponse>
 });
 
 /**
+ * GET /api/diary/date/:date
+ * 根据日期获取日记
+ */
+const getDiaryByDate = asyncHandler(async (req: Request, res: Response<ApiResponse<DiaryEntry>>) => {
+  const userId = req.user!.userId;
+  const date = req.params.date as string;
+
+  const entry = await DiaryEntryModel.findByDate(userId, date);
+  if (!entry) {
+    res.json({
+      success: true,
+      message: '该日期无日记记录',
+      data: null as any,
+    });
+    return;
+  }
+
+  // 获取关联的服装详情
+  const clothingItems = entry.clothingIds.length > 0
+    ? await ClothingItemModel.findByIds(entry.clothingIds)
+    : [];
+
+  res.json({
+    success: true,
+    message: '获取成功',
+    data: { ...entry, clothingItems } as DiaryEntry & { clothingItems: any[] },
+  });
+});
+
+/**
+ * GET /api/diary/calendar
+ * 获取日历数据（某月有日记的日期列表）
+ */
+const getCalendarData = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+  const { year, month } = req.query as { year?: string; month?: string };
+
+  const currentYear = year ? parseInt(year) : new Date().getFullYear();
+  const currentMonth = month ? parseInt(month) : new Date().getMonth() + 1;
+
+  const dates = await DiaryEntryModel.getDatesByMonth(userId, currentYear, currentMonth);
+
+  res.json({
+    success: true,
+    message: '获取成功',
+    data: {
+      year: currentYear,
+      month: currentMonth,
+      dates,
+    },
+  });
+});
+
+/**
+ * POST /api/diary/upsert
+ * 创建或更新日记（用于日历功能）
+ */
+const upsertDiary = asyncHandler(async (req: Request, res: Response<ApiResponse<DiaryEntry>>) => {
+  const userId = req.user!.userId;
+  const diaryData = req.body;
+
+  // 验证服装ID是否属于该用户
+  if (diaryData.clothingIds && diaryData.clothingIds.length > 0) {
+    const items = await ClothingItemModel.findByIds(diaryData.clothingIds);
+    const invalidItems = items.filter(item => item && (item as any).userId !== userId);
+    if (invalidItems.length > 0) {
+      throw Errors.badRequest('包含不属于您的服装单品');
+    }
+  }
+
+  const entry = await DiaryEntryModel.upsert(userId, {
+    date: diaryData.date,
+    weather: diaryData.weather,
+    mood: diaryData.mood,
+    notes: diaryData.notes,
+    photo: diaryData.photo,
+    clothingIds: diaryData.clothingIds || [],
+    outfitId: diaryData.outfitId,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: '保存成功',
+    data: entry,
+  });
+});
+
+/**
  * GET /api/diary/stats/monthly
  * 获取月度穿搭统计
  */
@@ -173,6 +261,9 @@ const getMonthlyStats = asyncHandler(async (req: Request, res: Response<ApiRespo
 
 router.get('/', listDiary);
 router.post('/', validate(createDiarySchema, 'body'), createDiary);
+router.post('/upsert', upsertDiary);
+router.get('/calendar', getCalendarData);
+router.get('/date/:date', getDiaryByDate);
 router.get('/stats/monthly', getMonthlyStats);
 router.get('/:id', validate(uuidSchema, 'params'), getDiary);
 router.put('/:id', validate(uuidSchema, 'params'), validate(updateDiarySchema, 'body'), updateDiary);

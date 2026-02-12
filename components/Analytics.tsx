@@ -5,9 +5,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useWardrobe } from '../src/hooks/useWardrobe';
-import { aiApi, analyticsApi } from '../services/api';
+import { useToast } from '../src/context/ToastContext';
+import { aiApi, analyticsApi, diaryApi } from '../services/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { BrainCircuit, RefreshCw, Calendar, TrendingUp, DollarSign, Palette, Tag, Shirt } from 'lucide-react';
+import { BrainCircuit, RefreshCw, Calendar, TrendingUp, DollarSign, Palette, Tag, Shirt, BookHeart } from 'lucide-react';
 import ImageRenderer from './ImageRenderer';
 
 interface AnalysisData {
@@ -30,12 +31,14 @@ const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981'
 
 const Analytics: React.FC = () => {
   const { items: wardrobe } = useWardrobe();
+  const { showError, showSuccess } = useToast();
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [brandStats, setBrandStats] = useState<any>(null);
   const [priceStats, setPriceStats] = useState<any>(null);
   const [wearStats, setWearStats] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'brand' | 'price' | 'wear'>('overview');
+  const [diaryStats, setDiaryStats] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'brand' | 'price' | 'wear' | 'diary'>('overview');
 
   // 加载保存的分析结果
   const loadSavedAnalysis = async () => {
@@ -45,7 +48,8 @@ const Analytics: React.FC = () => {
         setAnalysis(data);
       }
     } catch (err) {
-      console.error('加载分析结果失败:', err);
+      console.error('分析失败:', err);
+      showError('分析失败，请重试');
     }
   };
 
@@ -79,69 +83,35 @@ const Analytics: React.FC = () => {
     }
   };
 
-  // 执行分析
-  const performAnalysis = async () => {
-    if (wardrobe.length === 0) return;
+  // 加载日记统计
+  const loadDiaryStats = async () => {
+    try {
+      const now = new Date();
+      const stats = await diaryApi.getMonthlyStats(now.getFullYear(), now.getMonth() + 1);
+      
+      // 获取今年的所有日记
+      const yearStart = `${now.getFullYear()}-01-01`;
+      const yearEnd = `${now.getFullYear()}-12-31`;
+      const allDiaries = await diaryApi.getAll(1, 1000, yearStart, yearEnd);
+      
+      setDiaryStats({
+        ...stats,
+        totalThisYear: allDiaries?.length || 0,
+      });
+    } catch (err) {
+      console.error('加载日记统计失败:', err);
+    }
+  };
 
+  // 执行完整分析
+  const performAnalysis = async () => {
     setLoading(true);
     try {
-      // 获取AI分析
-      const aiResult = await aiApi.analyze();
-
-      // 计算统计数据
-      const categoryStats: Record<string, number> = {};
-      const colorStats: Record<string, number> = {};
-      const brandStats: Record<string, number> = {};
-      let totalValue = 0;
-      let priceCount = 0;
-      let maxPrice = 0;
-      let minPrice = Infinity;
-
-      wardrobe.forEach(item => {
-        // 品类统计
-        categoryStats[item.category] = (categoryStats[item.category] || 0) + 1;
-        
-        // 颜色统计
-        colorStats[item.color] = (colorStats[item.color] || 0) + 1;
-        
-        // 品牌统计
-        const brand = item.brand || '未标注品牌';
-        brandStats[brand] = (brandStats[brand] || 0) + 1;
-        
-        // 价格统计
-        if (item.price && item.price > 0) {
-          totalValue += item.price;
-          priceCount++;
-          maxPrice = Math.max(maxPrice, item.price);
-          minPrice = Math.min(minPrice, item.price);
-        }
-      });
-
-      // 保存分析结果
-      const analysisData = {
-        categoryStats,
-        colorStats,
-        brandStats,
-        priceStats: {
-          totalValue,
-          averagePrice: priceCount > 0 ? Math.round(totalValue / priceCount) : 0,
-          maxPrice: maxPrice === 0 ? 0 : maxPrice,
-          minPrice: minPrice === Infinity ? 0 : minPrice,
-        },
-        wearStats: [],
-        aiAnalysis: aiResult.analysis,
-      };
-
-      await analyticsApi.save(analysisData);
-      
-      // 重新加载所有数据
+      const result = await aiApi.analyze();
+      showSuccess('分析完成');
       await loadSavedAnalysis();
-      await loadBrandStats();
-      await loadPriceStats();
-      await loadWearStats();
     } catch (err) {
-      console.error('分析失败:', err);
-      alert('分析失败，请重试');
+      showError('分析失败，请重试');
     } finally {
       setLoading(false);
     }
@@ -152,6 +122,7 @@ const Analytics: React.FC = () => {
     loadBrandStats();
     loadPriceStats();
     loadWearStats();
+    loadDiaryStats();
   }, []);
 
   // 品类分布数据
@@ -216,6 +187,7 @@ const Analytics: React.FC = () => {
               { key: 'brand', label: '品牌', icon: Tag },
               { key: 'price', label: '价格', icon: DollarSign },
               { key: 'wear', label: '穿着', icon: Shirt },
+              { key: 'diary', label: '日记', icon: BookHeart },
             ].map(tab => (
               <button
                 key={tab.key}
@@ -504,6 +476,69 @@ const Analytics: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 日记 Tab */}
+          {activeTab === 'diary' && diaryStats && (
+            <div className="space-y-4">
+              {/* 日记统计概览 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
+                  <div className="text-2xl font-bold text-rose-500">{diaryStats.totalEntries}</div>
+                  <div className="text-xs text-slate-500 mt-1">本月记录</div>
+                </div>
+                <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
+                  <div className="text-2xl font-bold text-indigo-500">{diaryStats.totalThisYear || 0}</div>
+                  <div className="text-xs text-slate-500 mt-1">今年记录</div>
+                </div>
+                <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
+                  <div className="text-2xl font-bold text-purple-500">{diaryStats.uniqueOutfits}</div>
+                  <div className="text-xs text-slate-500 mt-1">不同搭配</div>
+                </div>
+                <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
+                  <div className="text-2xl font-bold text-amber-500">{diaryStats.avgMood || '-'}</div>
+                  <div className="text-xs text-slate-500 mt-1">主要心情</div>
+                </div>
+              </div>
+
+              {/* 日记统计说明 */}
+              <div className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-2xl p-6 border border-rose-100">
+                <h3 className="font-bold text-rose-800 mb-3 flex items-center gap-2">
+                  <BookHeart size={20} />
+                  穿搭日记统计
+                </h3>
+                <div className="space-y-2 text-sm text-rose-700">
+                  <p>
+                    <span className="font-medium">记录习惯：</span>
+                    本月已记录 {diaryStats.totalEntries} 天穿搭
+                    {diaryStats.totalEntries > 20 ? '，非常棒的习惯！' : 
+                     diaryStats.totalEntries > 10 ? '，继续保持！' : '，还有提升空间~'}
+                  </p>
+                  <p>
+                    <span className="font-medium">搭配多样性：</span>
+                    使用了 {diaryStats.uniqueOutfits} 种不同搭配
+                    {diaryStats.uniqueOutfits > 15 ? '，你的穿搭很有创意！' : 
+                     diaryStats.uniqueOutfits > 8 ? '，搭配很丰富！' : ''}
+                  </p>
+                  {diaryStats.avgMood && (
+                    <p>
+                      <span className="font-medium">本月心情：</span>
+                      主要心情是"{diaryStats.avgMood}"
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* 提示信息 */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+                <h3 className="font-semibold text-slate-800 mb-2">小贴士</h3>
+                <ul className="text-sm text-slate-600 space-y-1 list-disc list-inside">
+                  <li>坚持记录穿搭可以帮你了解自己的穿衣习惯</li>
+                  <li>通过日记回顾，可以发现哪些搭配最适合自己</li>
+                  <li>心情和天气的记录有助于分析穿搭与情绪的关系</li>
+                </ul>
+              </div>
             </div>
           )}
         </>

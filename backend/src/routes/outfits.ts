@@ -17,6 +17,7 @@ const createOutfitSchema = z.object({
   tags: z.array(z.string()).optional(),
   weather: z.string().optional(),
   occasion: z.string().optional(),
+  dressId: z.string().optional(),
   topId: z.string().optional(),
   bottomId: z.string().optional(),
   shoesId: z.string().optional(),
@@ -33,6 +34,10 @@ const listOutfits = asyncHandler(async (req: Request, res: Response) => {
   // 获取搭配中的服装详情
   const outfitsWithItems = await Promise.all(outfits.map(async (outfit) => {
     const clothingItems = [];
+    if (outfit.dressId) {
+      const item = await ClothingItemModel.findById(outfit.dressId, userId);
+      if (item) clothingItems.push(item);
+    }
     if (outfit.topId) {
       const item = await ClothingItemModel.findById(outfit.topId, userId);
       if (item) clothingItems.push(item);
@@ -61,6 +66,10 @@ const createOutfit = asyncHandler(async (req: Request, res: Response<ApiResponse
   const outfitData = req.body;
 
   // 验证服装ID是否属于该用户
+  if (outfitData.dressId) {
+    const item = await ClothingItemModel.findById(outfitData.dressId, userId);
+    if (!item) throw Errors.badRequest('连衣裙不存在或无权访问');
+  }
   if (outfitData.topId) {
     const item = await ClothingItemModel.findById(outfitData.topId, userId);
     if (!item) throw Errors.badRequest('上装不存在或无权访问');
@@ -92,6 +101,7 @@ const createOutfit = asyncHandler(async (req: Request, res: Response<ApiResponse
     tags: outfitData.tags || [],
     weather: outfitData.weather,
     occasion: outfitData.occasion,
+    dressId: outfitData.dressId,
     topId: outfitData.topId,
     bottomId: outfitData.bottomId,
     shoesId: outfitData.shoesId,

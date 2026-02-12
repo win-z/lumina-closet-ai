@@ -19,17 +19,16 @@ export enum Season {
 export interface ClothingItem {
   id: string;
   imageFront: string; // Base64
-  imageBack?: string; // Base64
   category: ClothingCategory;
   name: string;
   color: string;
-  
+
   // New Fields
   brand?: string;
   price?: number;
   purchaseDate?: string;
   tags: string[]; // e.g. ["休闲", "商务", "聚会"]
-  
+
   lastWorn?: string;
 }
 
@@ -59,6 +58,7 @@ export interface DiaryEntry {
   notes: string;
   clothingIds: string[]; // IDs of items worn
   photo?: string; // Optional generated image or user upload
+  outfitId?: string; // 关联的已保存搭配ID
 }
 
 export interface UserData {

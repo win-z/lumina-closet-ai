@@ -17,9 +17,9 @@ export class SavedOutfitModel {
 
     await execute(
       `INSERT INTO saved_outfits (
-        id, user_id, name, tags, weather, occasion, top_id, bottom_id, shoes_id,
+        id, user_id, name, tags, weather, occasion, dress_id, top_id, bottom_id, shoes_id,
         reasoning, tryon_image, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         userId,
@@ -27,6 +27,7 @@ export class SavedOutfitModel {
         JSON.stringify(data.tags || []),
         data.weather || null,
         data.occasion || null,
+        data.dressId || null,
         data.topId || null,
         data.bottomId || null,
         data.shoesId || null,
@@ -51,7 +52,7 @@ export class SavedOutfitModel {
    */
   static async findById(id: string, userId?: string): Promise<SavedOutfit | null> {
     let queryStr = `SELECT id, user_id as userId, name, tags, weather, occasion,
-            top_id as topId, bottom_id as bottomId, shoes_id as shoesId,
+            dress_id as dressId, top_id as topId, bottom_id as bottomId, shoes_id as shoesId,
             reasoning, tryon_image as tryonImage, created_at as createdAt, updated_at as updatedAt
      FROM saved_outfits
      WHERE id = ?`;
@@ -74,7 +75,7 @@ export class SavedOutfitModel {
   static async findByUserId(userId: string): Promise<SavedOutfit[]> {
     const rows = await query<SavedOutfit & { tags: string }>(
       `SELECT id, user_id as userId, name, tags, weather, occasion,
-              top_id as topId, bottom_id as bottomId, shoes_id as shoesId,
+              dress_id as dressId, top_id as topId, bottom_id as bottomId, shoes_id as shoesId,
               reasoning, tryon_image as tryonImage, created_at as createdAt, updated_at as updatedAt
        FROM saved_outfits
        WHERE user_id = ?
@@ -96,6 +97,7 @@ export class SavedOutfitModel {
       tags: this.safeJsonParse(row.tags),
       weather: row.weather || undefined,
       occasion: row.occasion || undefined,
+      dressId: row.dressId || undefined,
       topId: row.topId || undefined,
       bottomId: row.bottomId || undefined,
       shoesId: row.shoesId || undefined,
@@ -129,7 +131,7 @@ export class SavedOutfitModel {
     const values: unknown[] = [];
     const now = formatDate();
 
-    const allowedFields = ['name', 'tags', 'weather', 'occasion', 'topId', 'bottomId', 'shoesId', 'reasoning', 'tryonImage'];
+    const allowedFields = ['name', 'tags', 'weather', 'occasion', 'dressId', 'topId', 'bottomId', 'shoesId', 'reasoning', 'tryonImage'];
 
     for (const field of allowedFields) {
       const value = data[field as keyof typeof data];

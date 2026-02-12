@@ -5,11 +5,13 @@
 
 import React, { useState } from 'react';
 import { useProfile } from '../src/hooks/useProfile';
+import { useToast } from '../src/context/ToastContext';
 import ImageRenderer from './ImageRenderer';
 import { Camera, User, Ruler, Plus, Check } from 'lucide-react';
 
 const BodyProfile: React.FC = () => {
   const { profile, update, isLoggedIn } = useProfile();
+  const { showError, showSuccess } = useToast();
   const [activeTab, setActiveTab] = useState<'details' | 'scan'>('details');
   const [newUserName, setNewUserName] = useState("");
 
@@ -22,9 +24,10 @@ const BodyProfile: React.FC = () => {
       const base64 = reader.result as string;
       try {
         await update({ [view]: base64 } as any);
+        showSuccess('照片保存成功');
       } catch (err) {
         console.error("Failed to save profile image", err);
-        alert("图片保存失败");
+        showError("图片保存失败");
       }
     };
     reader.readAsDataURL(file);
@@ -33,9 +36,10 @@ const BodyProfile: React.FC = () => {
   const handleUpdateProfile = async (updates: any) => {
     try {
       await update(updates);
+      showSuccess('档案更新成功');
     } catch (err) {
       console.error("Failed to update profile", err);
-      alert("更新失败");
+      showError("更新失败");
     }
   };
 

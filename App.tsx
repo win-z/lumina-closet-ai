@@ -9,17 +9,20 @@ import WardrobeGallery from './components/WardrobeGallery';
 import BodyProfileComponent from './components/BodyProfile';
 import Stylist from './components/Stylist';
 import Analytics from './components/Analytics';
-import ClothingCalendar from './components/ClothingCalendar';
+import Diary from './components/Diary';
 import { Shirt, User, Sparkles, BarChart2, CalendarDays } from 'lucide-react';
 import { AppProvider, useApp } from './src/context/AppContext';
+import { ToastProvider, useToast } from './src/context/ToastContext';
 import { Loader2, LogIn } from 'lucide-react';
 
 // ==================== Main App with Provider ====================
 const AppWithProvider: React.FC = () => {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <ToastProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </ToastProvider>
   );
 };
 
@@ -77,7 +80,7 @@ const AppContent: React.FC = () => {
             <Stylist />
           )}
           {view === 'calendar' && user && (
-            <ClothingCalendar />
+            <Diary />
           )}
           {view === 'analytics' && user && (
             <Analytics />
@@ -101,18 +104,17 @@ const AppContent: React.FC = () => {
 const LoginView: React.FC<{ onLogin: (email: string, password: string, username?: string) => Promise<void> }> = ({ onLogin }) => {
   const [loginForm, setLoginForm] = useState({ email: '', password: '', username: '' });
   const [isRegister, setIsRegister] = useState(false);
-  const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { showError } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError('');
     setIsLoading(true);
 
     try {
       await onLogin(loginForm.email, loginForm.password, isRegister ? loginForm.username : undefined);
     } catch (e: any) {
-      setLoginError(e.message || '登录失败');
+      showError(e.message || '登录失败');
     } finally {
       setIsLoading(false);
     }
@@ -159,10 +161,6 @@ const LoginView: React.FC<{ onLogin: (email: string, password: string, username?
             onChange={e => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
             required
           />
-
-          {loginError && (
-            <div className="text-red-500 text-sm text-center">{loginError}</div>
-          )}
 
           <button
             type="submit"

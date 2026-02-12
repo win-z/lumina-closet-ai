@@ -58,7 +58,6 @@ const clothingCategories = ['上装', '下装', '连衣裙', '外套', '鞋履',
 
 export const clothingItemSchema = z.object({
   imageFront: z.string().optional().nullable(),
-  imageBack: z.string().optional().nullable(),
   category: z.union([z.enum(clothingCategories), z.literal('')]).optional().nullable().transform(v => v === '' ? undefined : v),
   name: z.string().min(0).max(100).optional().nullable().transform(v => v || ''),
   color: z.string().min(0).max(50).optional().nullable().transform(v => v || ''),

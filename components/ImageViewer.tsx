@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useToast } from '../src/context/ToastContext';
 import { X, Download } from 'lucide-react';
 
 interface ImageViewerProps {
@@ -22,6 +23,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt = '图片', isOpen, 
   const [showDownloadHint, setShowDownloadHint] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartTimeRef = useRef<number>(0);
+  const { showError } = useToast();
 
   // 关闭时重置状态
   useEffect(() => {
@@ -155,7 +157,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt = '图片', isOpen, 
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('下载失败:', err);
-      alert('下载失败，请重试');
+      showError('下载失败，请重试');
     }
   }, [src]);
 

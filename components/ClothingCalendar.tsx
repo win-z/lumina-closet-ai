@@ -5,9 +5,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useWardrobe } from '../src/hooks/useWardrobe';
-import { clothingRecordApi } from '../services/api';
+import { useToast } from '../src/context/ToastContext';
+import { clothingRecordApi, outfitsApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
-import { Calendar, ChevronLeft, ChevronRight, Plus, X, Check, BarChart3 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, X, Check, BarChart3, Sparkles } from 'lucide-react';
 import { ClothingCategory } from '../types';
 
 interface ClothingRecord {
@@ -20,6 +21,7 @@ interface ClothingRecord {
 
 const ClothingCalendar: React.FC = () => {
   const { items: wardrobe, getById } = useWardrobe();
+  const { showSuccess, showError } = useToast();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [records, setRecords] = useState<ClothingRecord[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -28,14 +30,27 @@ const ClothingCalendar: React.FC = () => {
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [stats, setStats] = useState<{ clothingId: string; wearCount: number; clothingItem?: any }[]>([]);
   const [showStats, setShowStats] = useState(false);
+  const [savedOutfits, setSavedOutfits] = useState<any[]>([]);
+  const [showOutfitSelector, setShowOutfitSelector] = useState(false);
+  const [isEditingRecord, setIsEditingRecord] = useState(false);
 
-  // 获取当前月份的开始和结束日期
+  // 本地日期格式化函数 (避免 toISOString() 的 UTC 转换问题)
+  const formatLocalDate = (date: Date): string => {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  };
+
+  // 获取当前月份的开始和结束日期 (使用本地日期格式，避免时区问题)
   const getMonthRange = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
-    return { startDate, endDate };
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0);
+
+    return {
+      startDate: formatLocalDate(startDate),
+      endDate: formatLocalDate(endDate),
+    };
   };
 
   // 加载穿着记录
@@ -62,10 +77,21 @@ const ClothingCalendar: React.FC = () => {
     }
   }, []);
 
+  // 加载已保存搭配
+  const loadSavedOutfits = useCallback(async () => {
+    try {
+      const outfits = await outfitsApi.getAll();
+      setSavedOutfits(outfits || []);
+    } catch (err) {
+      console.error('加载已保存搭配失败:', err);
+    }
+  }, []);
+
   useEffect(() => {
     loadRecords();
     loadStats();
-  }, [loadRecords, loadStats]);
+    loadSavedOutfits();
+  }, [loadRecords, loadStats, loadSavedOutfits]);
 
   // 获取某一天的记录
   const getRecordForDate = (dateStr: string) => {
@@ -107,8 +133,10 @@ const ClothingCalendar: React.FC = () => {
     const existingRecord = getRecordForDate(dateStr);
     if (existingRecord) {
       setSelectedClothing(existingRecord.clothingIds);
+      setIsEditingRecord(false); // 有记录时先进入查看模式
     } else {
       setSelectedClothing([]);
+      setIsEditingRecord(true); // 新记录直接进入编辑模式
     }
     setShowRecordModal(true);
   };
@@ -127,9 +155,10 @@ const ClothingCalendar: React.FC = () => {
       await loadRecords();
       await loadStats();
       setShowRecordModal(false);
+      showSuccess('穿着记录已保存');
     } catch (err) {
       console.error('保存记录失败:', err);
-      alert('保存失败，请重试');
+      showError('保存失败，请重试');
     }
   };
 
@@ -140,6 +169,18 @@ const ClothingCalendar: React.FC = () => {
         ? prev.filter(cid => cid !== id)
         : [...prev, id]
     );
+  };
+
+  // 从搭配导入衣物
+  const importFromOutfit = (outfit: any) => {
+    const clothingIds: string[] = [];
+    if (outfit.topId) clothingIds.push(outfit.topId);
+    if (outfit.bottomId) clothingIds.push(outfit.bottomId);
+    if (outfit.shoesId) clothingIds.push(outfit.shoesId);
+    
+    setSelectedClothing(clothingIds);
+    setShowOutfitSelector(false);
+    showSuccess(`已导入搭配"${outfit.name || '未命名搭配'}"`);
   };
 
   // 按类别分组衣物
@@ -238,9 +279,11 @@ const ClothingCalendar: React.FC = () => {
             return <div key={`empty-${index}`} className="aspect-square" />;
           }
 
-          const dateStr = date.toISOString().split('T')[0];
+          const dateStr = formatLocalDate(date);
           const record = getRecordForDate(dateStr);
-          const isToday = dateStr === new Date().toISOString().split('T')[0];
+          const isToday = dateStr === formatLocalDate(new Date());
+
+          const hasRecord = record && record.clothingIds && record.clothingIds.length > 0;
 
           return (
             <button
@@ -249,12 +292,21 @@ const ClothingCalendar: React.FC = () => {
               className={`aspect-square rounded-lg p-1 relative transition-all ${
                 isToday 
                   ? 'bg-emerald-100 border-2 border-emerald-500' 
-                  : 'bg-white border border-slate-100 hover:border-emerald-300'
+                  : hasRecord
+                    ? 'bg-indigo-50 border-2 border-indigo-400 hover:border-indigo-500'
+                    : 'bg-white border border-slate-100 hover:border-emerald-300'
               }`}
             >
-              <span className={`text-sm font-medium ${isToday ? 'text-emerald-700' : 'text-slate-700'}`}>
+              <span className={`text-sm font-medium ${
+                isToday ? 'text-emerald-700' : hasRecord ? 'text-indigo-700' : 'text-slate-700'
+              }`}>
                 {date.getDate()}
               </span>
+              
+              {/* 已记录标记 */}
+              {hasRecord && (
+                <div className="absolute top-1 right-1 w-2 h-2 bg-indigo-500 rounded-full" />
+              )}
               
               {/* 显示记录预览 */}
               {record && record.clothingItems && record.clothingItems.length > 0 && (
@@ -283,7 +335,7 @@ const ClothingCalendar: React.FC = () => {
 
       {/* 今日快捷记录按钮 */}
       <button
-        onClick={() => openRecordModal(new Date().toISOString().split('T')[0])}
+        onClick={() => openRecordModal(formatLocalDate(new Date()))}
         className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-medium hover:shadow-lg transition-all flex items-center justify-center gap-2"
       >
         <Plus size={20} />
@@ -310,61 +362,243 @@ const ClothingCalendar: React.FC = () => {
             </div>
 
             <div className="p-4 space-y-4 overflow-y-auto flex-1">
-              {Object.entries(clothingByCategory).map(([category, items]: [string, typeof wardrobe]) => (
-                <div key={category} className="space-y-2">
-                  <h4 className="text-sm font-medium text-slate-600">{category}</h4>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {items.map((item: any) => (
+              {!isEditingRecord ? (
+                // 查看模式：显示已记录的搭配
+                <>
+                  {/* 搭配预览区域 */}
+                  <div className="bg-slate-50 rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-slate-600">当日穿搭</span>
                       <button
-                        key={item.id}
-                        onClick={() => toggleClothing(item.id)}
-                        className={`flex-shrink-0 relative ${
-                          selectedClothing.includes(item.id) 
-                            ? 'ring-2 ring-emerald-500 rounded-lg' 
-                            : ''
-                        }`}
+                        onClick={() => setIsEditingRecord(true)}
+                        className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
                       >
-                        <div className="aspect-[9/16] w-16 rounded-lg overflow-hidden bg-slate-50">
-                          <ImageRenderer
-                            src={item.imageFront}
-                            alt={item.name}
-                            aspectRatio="9/16"
-                            className="w-full h-full"
-                          />
-                        </div>
-                        {selectedClothing.includes(item.id) && (
-                          <div className="absolute inset-0 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-                            <Check size={16} className="text-emerald-600" />
-                          </div>
-                        )}
+                        编辑
                       </button>
-                    ))}
+                    </div>
+                    
+                    {/* 搭配整体展示 */}
+                    <div className="flex justify-center gap-2 mb-4">
+                      {selectedClothing.slice(0, 4).map((clothingId, idx) => {
+                        const item = getById(clothingId);
+                        if (!item) return null;
+                        return (
+                          <div key={idx} className="w-20 h-24 rounded-lg overflow-hidden bg-white shadow-sm">
+                            <ImageRenderer
+                              src={item.imageFront}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    <p className="text-center text-sm text-slate-500">
+                      共 {selectedClothing.length} 件单品
+                    </p>
                   </div>
-                </div>
-              ))}
 
-              {wardrobe.length === 0 && (
-                <div className="text-center py-8 text-slate-400">
-                  <p>衣橱为空</p>
-                  <p className="text-sm mt-1">先去添加一些衣物吧</p>
-                </div>
+                  {/* 单品详情列表 */}
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-slate-600">单品详情</h4>
+                    <div className="space-y-2">
+                      {selectedClothing.map((clothingId) => {
+                        const item = getById(clothingId);
+                        if (!item) return null;
+                        return (
+                          <div key={clothingId} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100">
+                            <div className="w-12 h-14 rounded-lg overflow-hidden bg-slate-50 flex-shrink-0">
+                              <ImageRenderer
+                                src={item.imageFront}
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-slate-800 truncate">{item.name}</p>
+                              <p className="text-xs text-slate-500">{item.category} · {item.color}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowRecordModal(false)}
+                    className="w-full py-3 bg-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-300"
+                  >
+                    关闭
+                  </button>
+                </>
+              ) : (
+                // 编辑模式：选择衣服
+                <>
+                  {/* 从搭配导入按钮 */}
+                  {savedOutfits.length > 0 && (
+                    <button
+                      onClick={() => setShowOutfitSelector(true)}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      <Sparkles size={18} />
+                      从已保存搭配导入
+                    </button>
+                  )}
+
+                  {Object.entries(clothingByCategory).map(([category, items]: [string, typeof wardrobe]) => (
+                    <div key={category} className="space-y-2">
+                      <h4 className="text-sm font-medium text-slate-600">{category}</h4>
+                      <div className="flex gap-2 overflow-x-auto pb-2">
+                        {items.map((item: any) => (
+                          <button
+                            key={item.id}
+                            onClick={() => toggleClothing(item.id)}
+                            className={`flex-shrink-0 relative ${
+                              selectedClothing.includes(item.id) 
+                                ? 'ring-2 ring-emerald-500 rounded-lg' 
+                                : ''
+                            }`}
+                          >
+                            <div className="aspect-[9/16] w-16 rounded-lg overflow-hidden bg-slate-50">
+                              <ImageRenderer
+                                src={item.imageFront}
+                                alt={item.name}
+                                aspectRatio="9/16"
+                                className="w-full h-full"
+                              />
+                            </div>
+                            {selectedClothing.includes(item.id) && (
+                              <div className="absolute inset-0 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+                                <Check size={16} className="text-emerald-600" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {wardrobe.length === 0 && (
+                    <div className="text-center py-8 text-slate-400">
+                      <p>衣橱为空</p>
+                      <p className="text-sm mt-1">先去添加一些衣物吧</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-4">
+                    <button
+                      onClick={saveRecord}
+                      disabled={selectedClothing.length === 0}
+                      className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      保存记录
+                    </button>
+                    <button
+                      onClick={() => {
+                        const existingRecord = getRecordForDate(selectedDate);
+                        if (existingRecord) {
+                          setIsEditingRecord(false);
+                        } else {
+                          setShowRecordModal(false);
+                        }
+                      }}
+                      className="flex-1 py-3 bg-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-300"
+                    >
+                      {getRecordForDate(selectedDate) ? '取消' : '关闭'}
+                    </button>
+                  </div>
+                </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div className="flex gap-2 pt-4">
-                <button
-                  onClick={saveRecord}
-                  disabled={selectedClothing.length === 0}
-                  className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  保存记录
-                </button>
-                <button
-                  onClick={() => setShowRecordModal(false)}
-                  className="flex-1 py-3 bg-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-300"
-                >
-                  取消
-                </button>
-              </div>
+      {/* 搭配选择弹窗 */}
+      {showOutfitSelector && (
+        <div className="fixed inset-0 z-[201] flex items-start justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowOutfitSelector(false)} />
+          <div className="relative w-full max-w-[calc(393px-32px)] mx-4 mt-[72px] mb-[88px] max-h-[calc(852px-160px)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-800">选择搭配</h3>
+              <button
+                onClick={() => setShowOutfitSelector(false)}
+                className="p-2 text-slate-400 hover:text-slate-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 overflow-y-auto flex-1">
+              {savedOutfits.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  <p>暂无已保存搭配</p>
+                  <p className="text-sm mt-1">先去搭配页面保存一些搭配吧</p>
+                </div>
+              ) : (
+                savedOutfits.map((outfit) => (
+                  <button
+                    key={outfit.id}
+                    onClick={() => importFromOutfit(outfit)}
+                    className="w-full p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* 搭配预览图 */}
+                      <div className="flex -space-x-2">
+                        {outfit.tryonImage ? (
+                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-slate-200 ring-2 ring-white">
+                            <ImageRenderer
+                              src={outfit.tryonImage}
+                              alt={outfit.name || '搭配'}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            {outfit.topId && (
+                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-200 ring-2 ring-white">
+                                <ImageRenderer
+                                  src={getById(outfit.topId)?.imageFront}
+                                  alt="上装"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            {outfit.bottomId && (
+                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-200 ring-2 ring-white">
+                                <ImageRenderer
+                                  src={getById(outfit.bottomId)?.imageFront}
+                                  alt="下装"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            {outfit.shoesId && (
+                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-200 ring-2 ring-white">
+                                <ImageRenderer
+                                  src={getById(outfit.shoesId)?.imageFront}
+                                  alt="鞋履"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-800 truncate">
+                          {outfit.name || '未命名搭配'}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {outfit.occasion || '日常'} · {outfit.weather || '不限天气'}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </div>

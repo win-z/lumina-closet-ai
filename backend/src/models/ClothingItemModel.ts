@@ -17,10 +17,10 @@ export class ClothingItemModel {
 
     await execute(
       `INSERT INTO clothing_items (
-         id, user_id, image_front, image_back, category, name, color,
+         id, user_id, image_front, category, name, color,
          brand, price, purchase_date, tags, last_worn, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, userId, data.imageFront || null, data.imageBack || null, data.category, data.name, data.color, data.brand || null, data.price || null, data.purchaseDate || null, JSON.stringify(data.tags), data.lastWorn || null, now, now]
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, userId, data.imageFront || null, data.category, data.name, data.color, data.brand || null, data.price || null, data.purchaseDate || null, JSON.stringify(data.tags), data.lastWorn || null, now, now]
     );
 
     return {
@@ -35,7 +35,7 @@ export class ClothingItemModel {
    * 根据ID查找单品
    */
   static async findById(id: string, userId?: string): Promise<ClothingItem | null> {
-    let queryStr = `SELECT id, image_front as imageFront, image_back as imageBack,
+    let queryStr = `SELECT id, image_front as imageFront,
             category, name, color, brand, price, purchase_date as purchaseDate,
             tags, last_worn as lastWorn, created_at as createdAt, updated_at as updatedAt
      FROM clothing_items
@@ -62,7 +62,7 @@ export class ClothingItemModel {
     limit?: number;
     offset?: number;
   }): Promise<ClothingItem[]> {
-    let queryStr = `SELECT id, image_front as imageFront, image_back as imageBack,
+    let queryStr = `SELECT id, image_front as imageFront,
            category, name, color, brand, price, purchase_date as purchaseDate,
            tags, last_worn as lastWorn, created_at as createdAt, updated_at as updatedAt
     FROM clothing_items
@@ -101,7 +101,7 @@ export class ClothingItemModel {
 
     const placeholders = ids.map(() => '?').join(',');
     const rows = await query<any>(
-      `SELECT id, user_id as userId, image_front as imageFront, image_back as imageBack,
+      `SELECT id, user_id as userId, image_front as imageFront,
               category, name, color, brand, price, purchase_date as purchaseDate,
               tags, last_worn as lastWorn, created_at as createdAt, updated_at as updatedAt
        FROM clothing_items
@@ -127,7 +127,7 @@ export class ClothingItemModel {
     const now = formatDate();
 
     const allowedFields: (keyof typeof data)[] = [
-      'imageFront', 'imageBack', 'category', 'name', 'color',
+      'imageFront', 'category', 'name', 'color',
       'brand', 'price', 'purchaseDate', 'tags', 'lastWorn'
     ];
 

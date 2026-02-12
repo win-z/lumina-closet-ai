@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { ClothingCategory } from '../types';
 import { useWardrobe } from '../src/hooks/useWardrobe';
+import { useToast } from '../src/context/ToastContext';
 import { aiApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
 import { Camera, Plus, X, Trash2, Search, ChevronDown, Loader2 } from 'lucide-react';
@@ -56,58 +57,52 @@ const resizeImage = (file: File): Promise<string> => {
 
 const WardrobeGallery: React.FC = () => {
   const { items, add, count, getByCategory, update, remove, getById } = useWardrobe();
+  const { showError, showSuccess, showConfirm } = useToast();
 
   const [isUploading, setIsUploading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingItem, setEditingItem] = useState<string>('');
   const [analyzing, setAnalyzing] = useState(false);
   const [previewFront, setPreviewFront] = useState<string>('');
-  const [previewBack, setPreviewBack] = useState<string>('');
   const [newItem, setNewItem] = useState<Partial<any>>({
     category: ClothingCategory.TOP,
     tags: []
   });
   const [customTagInput, setCustomTagInput] = useState("");
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       const compressedBase64 = await resizeImage(file);
-      if (side === 'front') {
-        setPreviewFront(compressedBase64);
-      } else {
-        setPreviewBack(compressedBase64);
-      }
-      
+      setPreviewFront(compressedBase64);
+
       // AI auto-tag
-      if (side === 'front') {
-        setAnalyzing(true);
-        try {
-          const aiResult = await aiApi.autoTag(compressedBase64);
-          setNewItem(prev => ({
-            ...prev,
-            name: aiResult.name || prev.name,
-            color: aiResult.color || prev.color,
-            category: aiResult.category || prev.category,
-            tags: [...new Set([...(prev.tags || []), ...(aiResult.tags || [])])]
-          }));
-        } catch (e) {
-          console.error('AI分析失败:', e);
-        } finally {
-          setAnalyzing(false);
-        }
+      setAnalyzing(true);
+      try {
+        const aiResult = await aiApi.autoTag(compressedBase64);
+        setNewItem(prev => ({
+          ...prev,
+          name: aiResult.name || prev.name,
+          color: aiResult.color || prev.color,
+          category: aiResult.category || prev.category,
+          tags: [...new Set([...(prev.tags || []), ...(aiResult.tags || [])])]
+        }));
+      } catch (e) {
+        console.error('AI分析失败:', e);
+      } finally {
+        setAnalyzing(false);
       }
     } catch (e) {
       console.error('图片处理失败:', e);
-      alert('图片处理失败，请重试');
+      showError('图片处理失败，请重试');
     }
   };
 
   const saveItem = async () => {
     if (!previewFront || !newItem.name) {
-      alert("请上传正面图片并填写名称");
+      showError("请上传正面图片并填写名称");
       return;
     }
 
@@ -119,15 +114,15 @@ const WardrobeGallery: React.FC = () => {
         await update(editingItem, {
           ...newItem,
           imageFront: previewFront,
-          imageBack: previewBack || undefined,
         } as any);
+        showSuccess("单品更新成功");
       } else {
         // 添加新单品
         await add({
           ...newItem,
           imageFront: previewFront,
-          imageBack: previewBack || undefined,
         } as any);
+        showSuccess("单品入库成功");
       }
 
       // Reset form
@@ -136,10 +131,9 @@ const WardrobeGallery: React.FC = () => {
       setEditingItem('');
       setNewItem({ category: ClothingCategory.TOP, tags: [] });
       setPreviewFront('');
-      setPreviewBack('');
       setCustomTagInput("");
     } catch (e: any) {
-      alert(`${editingItem ? '更新' : '保存'}失败: ${e?.message || "未知错误"}`);
+      showError(`${editingItem ? '更新' : '保存'}失败: ${e?.message || "未知错误"}`);
     } finally {
       setAnalyzing(false);
     }
@@ -157,18 +151,26 @@ const WardrobeGallery: React.FC = () => {
       tags: item.tags || [],
     });
     setPreviewFront(item.imageFront);
-    setPreviewBack(item.imageBack || '');
     setIsEditing(true);
     setIsUploading(true);
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这件单品吗？')) return;
+    const confirmed = await showConfirm({
+      title: '删除单品',
+      message: '确定要删除这件单品吗？删除后无法恢复。',
+      confirmText: '删除',
+      cancelText: '取消',
+      type: 'danger',
+    });
+    
+    if (!confirmed) return;
 
     try {
       await remove(id);
+      showSuccess("单品删除成功");
     } catch (e: any) {
-      alert(`删除失败: ${e?.message || "未知错误"}`);
+      showError(`删除失败: ${e?.message || "未知错误"}`);
     }
   };
 
@@ -229,7 +231,7 @@ const WardrobeGallery: React.FC = () => {
                       <Trash2 size={12} />
                     </button>
                     <ImageRenderer
-                      src={item.imageFront || item.imageBack}
+                      src={item.imageFront}
                       alt={item.name || '未命名'}
                       aspectRatio="9/16"
                       onClick={() => handleEdit(item)}
@@ -288,45 +290,23 @@ const WardrobeGallery: React.FC = () => {
 
             <div className="p-4 space-y-4 overflow-y-auto flex-1">
               {/* Image Upload */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">正面照片 *</label>
-                  <div className="aspect-[3/4] bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
-                    {previewFront ? (
-                      <img src={previewFront} alt="正面" className="w-full h-full object-cover" />
-                    ) : (
-                      <>
-                        <Camera size={24} className="text-slate-400 mb-2" />
-                        <span className="text-sm text-slate-400">点击上传</span>
-                      </>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileChange(e, 'front')}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">背面照片</label>
-                  <div className="aspect-[3/4] bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
-                    {previewBack ? (
-                      <img src={previewBack} alt="背面" className="w-full h-full object-cover" />
-                    ) : (
-                      <>
-                        <Camera size={24} className="text-slate-400 mb-2" />
-                        <span className="text-sm text-slate-400">点击上传</span>
-                      </>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileChange(e, 'back')}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                  </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">照片 *</label>
+                <div className="aspect-[3/4] bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
+                  {previewFront ? (
+                    <img src={previewFront} alt="服装照片" className="w-full h-full object-cover" />
+                  ) : (
+                    <>
+                      <Camera size={24} className="text-slate-400 mb-2" />
+                      <span className="text-sm text-slate-400">点击上传</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e)}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
                 </div>
               </div>
 
@@ -438,7 +418,6 @@ const WardrobeGallery: React.FC = () => {
                     setIsEditing(false);
                     setEditingItem('');
                     setPreviewFront('');
-                    setPreviewBack('');
                     setNewItem({ category: ClothingCategory.TOP, tags: [] });
                   }}
                   className="w-full py-3 bg-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-300 transition-all"

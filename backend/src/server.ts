@@ -40,6 +40,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authMiddleware } from './middleware/auth';
 import { responseMiddleware } from './middleware/response';
 import { query } from './database';
+import { initDatabase } from './database/init';
 
 // 导入路由
 import indexRoutes from './routes';
@@ -153,14 +154,22 @@ const PORT = config.port;
 import { getDatabaseAdapter } from './database/adapter';
 const db = getDatabaseAdapter(); // 触发表创建
 
-// 启动服务
-app.listen(PORT, () => {
-  logger.info(`🚀 Lumina Closet AI 后端服务已启动`);
-  logger.info(`   环境: ${config.nodeEnv}`);
-  logger.info(`   端口: ${PORT}`);
-  logger.info(`   文档: http://localhost:${PORT}/health`);
-  logger.info(`   API基础路径: http://localhost:${PORT}/api`);
-});
+// 初始化数据库并启动服务
+const startServer = async () => {
+  // 初始化数据库表
+  await initDatabase();
+  
+  // 启动服务
+  app.listen(PORT, () => {
+    logger.info(`🚀 Lumina Closet AI 后端服务已启动`);
+    logger.info(`   环境: ${config.nodeEnv}`);
+    logger.info(`   端口: ${PORT}`);
+    logger.info(`   文档: http://localhost:${PORT}/health`);
+    logger.info(`   API基础路径: http://localhost:${PORT}/api`);
+  });
+};
+
+startServer();
 
 // ==================== 优雅关闭处理 ====================
 process.on('SIGTERM', () => {

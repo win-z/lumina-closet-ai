@@ -1,11 +1,11 @@
 /**
  * ==================== 豆包(Doubao) 虚拟试穿服务 ====================
  * 使用 Seedream 4.5 多图参考生成功能实现虚拟试穿
- * 
+ *
  * 输入：
  * - 用户照片（正面、侧面、背面）
- * - 服装照片（上装正反面、下装正反面、鞋履）
- * 
+ * - 服装照片（上装、下装、鞋履正面照片）
+ *
  * 输出：试穿效果图
  */
 
@@ -62,33 +62,19 @@ export class DoubaoService {
     }
 
     // 添加服装照片
-    if (top) {
-      if (top.imageFront) {
-        referenceImages.push(top.imageFront);
-        logger.info('添加上装正面照片');
-      }
-      if (top.imageBack) {
-        referenceImages.push(top.imageBack);
-        logger.info('添加上装背面照片');
-      }
+    if (top?.imageFront) {
+      referenceImages.push(top.imageFront);
+      logger.info('添加上装照片');
     }
 
-    if (bottom) {
-      if (bottom.imageFront) {
-        referenceImages.push(bottom.imageFront);
-        logger.info('添加下装正面照片');
-      }
-      if (bottom.imageBack) {
-        referenceImages.push(bottom.imageBack);
-        logger.info('添加下装背面照片');
-      }
+    if (bottom?.imageFront) {
+      referenceImages.push(bottom.imageFront);
+      logger.info('添加下装照片');
     }
 
-    if (shoes) {
-      if (shoes.imageFront) {
-        referenceImages.push(shoes.imageFront);
-        logger.info('添加鞋履照片');
-      }
+    if (shoes?.imageFront) {
+      referenceImages.push(shoes.imageFront);
+      logger.info('添加鞋履照片');
     }
 
     if (referenceImages.length === 0) {
@@ -178,14 +164,12 @@ export class DoubaoService {
     
     if (top) {
       imageIndex++;
-      prompt += `将图${imageIndex}${top.imageBack ? `和图${imageIndex + 1}` : ''}中的${top.color}${top.name}穿在人物身上，`;
-      if (top.imageBack) imageIndex++;
+      prompt += `将图${imageIndex}中的${top.color}${top.name}穿在人物身上，`;
     }
 
     if (bottom) {
       imageIndex++;
-      prompt += `搭配图${imageIndex}${bottom.imageBack ? `和图${imageIndex + 1}` : ''}中的${bottom.color}${bottom.name}，`;
-      if (bottom.imageBack) imageIndex++;
+      prompt += `搭配图${imageIndex}中的${bottom.color}${bottom.name}，`;
     }
 
     if (shoes) {

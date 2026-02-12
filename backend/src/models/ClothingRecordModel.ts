@@ -70,52 +70,75 @@ export class ClothingRecordModel {
   }
 
   /**
-   * 获取用户在日期范围内的记录
+   * 获取用户在日期范围内的记录（按日期分组，每日期只取最新更新的记录）
    */
   static async findByUserIdAndDateRange(
     userId: string,
     startDate: string,
     endDate: string
   ): Promise<ClothingRecord[]> {
-    const rows = await query<ClothingRecord & { clothingIds: string }>(
+    // 先查询日期范围内的所有记录
+    const allRows = await query<ClothingRecord & { clothingIds: string }>(
       `SELECT id, user_id as userId, date, clothing_ids as clothingIds, notes, created_at as createdAt, updated_at as updatedAt
        FROM clothing_records
        WHERE user_id = ? AND date >= ? AND date <= ?
-       ORDER BY date DESC`,
+       ORDER BY date DESC, updated_at DESC`,
       [userId, startDate, endDate]
     );
 
-    return rows.map(row => this.mapRowToClothingRecord(row));
+    // 按日期分组，每日期只取最新更新的记录
+    const latestByDate = new Map<string, ClothingRecord & { clothingIds: string }>();
+    for (const row of allRows) {
+      if (!latestByDate.has(row.date)) {
+        latestByDate.set(row.date, row);
+      }
+    }
+
+    return Array.from(latestByDate.values())
+      .map(row => this.mapRowToClothingRecord(row))
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }
 
   /**
-   * 获取用户所有记录
+   * 获取用户所有记录（按日期分组，每日期只取最新更新的记录）
    */
   static async findByUserId(userId: string): Promise<ClothingRecord[]> {
-    const rows = await query<ClothingRecord & { clothingIds: string }>(
+    const allRows = await query<ClothingRecord & { clothingIds: string }>(
       `SELECT id, user_id as userId, date, clothing_ids as clothingIds, notes, created_at as createdAt, updated_at as updatedAt
        FROM clothing_records
        WHERE user_id = ?
-       ORDER BY date DESC`,
+       ORDER BY date DESC, updated_at DESC`,
       [userId]
     );
 
-    return rows.map(row => this.mapRowToClothingRecord(row));
+    // 按日期分组，每日期只取最新更新的记录
+    const latestByDate = new Map<string, ClothingRecord & { clothingIds: string }>();
+    for (const row of allRows) {
+      const dateKey = String(row.date);
+      if (!latestByDate.has(dateKey)) {
+        latestByDate.set(dateKey, row);
+      }
+    }
+
+    return Array.from(latestByDate.values())
+      .map(row => this.mapRowToClothingRecord(row))
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }
 
   /**
-   * 获取特定日期的记录
+   * 获取特定日期的记录（如果有多个，取最新更新的）
    */
   static async findByDate(userId: string, date: string): Promise<ClothingRecord | null> {
-    const row = await queryOne<ClothingRecord & { clothingIds: string }>(
+    const rows = await query<ClothingRecord & { clothingIds: string }>(
       `SELECT id, user_id as userId, date, clothing_ids as clothingIds, notes, created_at as createdAt, updated_at as updatedAt
        FROM clothing_records
-       WHERE user_id = ? AND date = ?`,
+       WHERE user_id = ? AND date = ?
+       ORDER BY updated_at DESC`,
       [userId, date]
     );
 
-    if (!row) return null;
-    return this.mapRowToClothingRecord(row);
+    if (rows.length === 0) return null;
+    return this.mapRowToClothingRecord(rows[0]);
   }
 
   /**
@@ -166,23 +189,40 @@ export class ClothingRecordModel {
   }
 
   /**
-   * 获取穿着统计
-   */
-  static async getWearStats(userId: string): Promise<ClothingWearStats[]> {
-    const rows = await query<{ clothingId: string; wearCount: number; lastWorn: string }>(
-      `SELECT 
-        json_each.value as clothingId,
-        COUNT(*) as wearCount,
-        MAX(date) as lastWorn
-       FROM clothing_records, json_each(clothing_records.clothing_ids)
-       WHERE user_id = ?
-       GROUP BY json_each.value
-       ORDER BY wearCount DESC`,
-      [userId]
-    );
+    * 获取穿着统计（兼容旧版MySQL，不用json_each）
+    */
+   static async getWearStats(userId: string): Promise<ClothingWearStats[]> {
+     // 先获取所有记录，然后在代码中解析JSON
+     const rows = await query<{ id: string; clothing_ids: string; date: string }>(
+       `SELECT id, clothing_ids, date FROM clothing_records WHERE user_id = ?`,
+       [userId]
+     );
 
-    return rows;
-  }
+     // 统计每件衣服的穿着次数
+     const statsMap = new Map<string, { count: number; lastWorn: string }>();
+
+     for (const row of rows) {
+       const clothingIds = this.safeJsonParse(row.clothing_ids);
+       for (const clothingId of clothingIds) {
+         const existing = statsMap.get(clothingId);
+         if (existing) {
+           existing.count += 1;
+           if (row.date > existing.lastWorn) {
+             existing.lastWorn = row.date;
+           }
+         } else {
+           statsMap.set(clothingId, { count: 1, lastWorn: row.date });
+         }
+       }
+     }
+
+     // 转换为数组并排序
+     return Array.from(statsMap.entries()).map(([clothingId, data]) => ({
+       clothingId,
+       wearCount: data.count,
+       lastWorn: data.lastWorn,
+     })).sort((a, b) => b.wearCount - a.wearCount);
+   }
 
   /**
    * 将数据库行映射为ClothingRecord对象

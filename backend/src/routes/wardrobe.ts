@@ -57,47 +57,23 @@ const createItem = asyncHandler(async (req: Request, res: Response<ApiResponse<C
   const itemData = req.body;
 
   let imageFront: string | undefined = itemData.imageFront || undefined;
-  let imageBack: string | undefined = itemData.imageBack || undefined;
-  let originalBase64: string | undefined = undefined;
 
+  // 上传图片到COS
   if (imageFront && imageFront.startsWith('data:')) {
-    originalBase64 = imageFront;
     const result = await CosService.uploadBase64Image(cleanBase64Prefix(imageFront), userId);
     imageFront = result.url;
   }
 
-  if (imageBack && imageBack.startsWith('data:')) {
-    const result = await CosService.uploadBase64Image(cleanBase64Prefix(imageBack), userId);
-    imageBack = result.url;
-  }
-
-  let name = itemData.name;
-  let color = itemData.color;
-  let category = itemData.category as ClothingCategory;
-  let tags = itemData.tags || [];
-
-  if (originalBase64) {
-    try {
-      const aiResult = await aiService.autoTagClothing(originalBase64);
-      name = aiResult.name || name;
-      color = aiResult.color || color;
-      category = aiResult.category as ClothingCategory || category;
-      tags = [...new Set([...tags, ...(aiResult.tags || [])])];
-    } catch (error) {
-      console.error('AI自动标签失败:', error);
-    }
-  }
-
+  // 使用前端传来的AI识别结果（不再重复调用AI）
   const item = await ClothingItemModel.create(userId, {
     imageFront,
-    imageBack,
-    category,
-    name,
-    color,
+    category: itemData.category as ClothingCategory,
+    name: itemData.name,
+    color: itemData.color,
     brand: itemData.brand || null,
     price: itemData.price || null,
     purchaseDate: itemData.purchaseDate || null,
-    tags,
+    tags: itemData.tags || [],
     lastWorn: itemData.lastWorn || null,
   });
 
@@ -145,11 +121,6 @@ const updateItem = asyncHandler(async (req: Request, res: Response<ApiResponse<C
   if (updateData.imageFront && updateData.imageFront.startsWith('data:')) {
     const result = await CosService.uploadBase64Image(cleanBase64Prefix(updateData.imageFront), userId);
     updateData.imageFront = result.url;
-  }
-
-  if (updateData.imageBack && updateData.imageBack.startsWith('data:')) {
-    const result = await CosService.uploadBase64Image(cleanBase64Prefix(updateData.imageBack), userId);
-    updateData.imageBack = result.url;
   }
 
   const item = await ClothingItemModel.update(id, userId, updateData as any);

@@ -8,6 +8,7 @@ import { useWardrobe } from '../src/hooks/useWardrobe';
 import { useProfile } from '../src/hooks/useProfile';
 import { useDiary } from '../src/hooks/useDiary';
 import { useApp } from '../src/context/AppContext';
+import { useToast } from '../src/context/ToastContext';
 import { aiApi, outfitsApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
 import { Sparkles, CloudSun, Calendar, RefreshCw, BookmarkPlus, Trash2, Edit, Plus, X, Camera, Upload } from 'lucide-react';
@@ -18,6 +19,7 @@ const Stylist: React.FC = () => {
   const { profile } = useProfile();
   const { add: addToDiary } = useDiary();
   const { user, loadUserData } = useApp();
+  const { showSuccess, showError, showConfirm } = useToast();
 
   const [activeTab, setActiveTab] = useState<'generate' | 'saved'>('generate');
   const [weather, setWeather] = useState("晴天, 24°C");
@@ -35,6 +37,7 @@ const Stylist: React.FC = () => {
   const [manualMode, setManualMode] = useState(false);
   const [selectedTops, setSelectedTops] = useState<string[]>([]);
   const [selectedBottoms, setSelectedBottoms] = useState<string[]>([]);
+  const [selectedDress, setSelectedDress] = useState<string | null>(null);
   const [selectedShoes, setSelectedShoes] = useState<string[]>([]);
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
   const [realPhoto, setRealPhoto] = useState<string>(''); // 上传的真实穿着图
@@ -92,7 +95,7 @@ const Stylist: React.FC = () => {
 
   const getSuggestion = async () => {
     if (wardrobe.length < 2) {
-      alert("请先在衣橱中添加一些衣物！");
+      showError("请先在衣橱中添加一些衣物！");
       return;
     }
     setLoading(true);
@@ -102,7 +105,7 @@ const Stylist: React.FC = () => {
       setSuggestion(result);
     } catch (e) {
       console.error(e);
-      alert("生成搭配失败，请检查网络或Key。");
+      showError("生成搭配失败，请检查网络或Key。");
     } finally {
       setLoading(false);
     }
@@ -131,14 +134,19 @@ const Stylist: React.FC = () => {
 
   // 手动选择生成试穿图或使用真实照片
   const handleManualGenerate = async () => {
-    if (selectedTops.length === 0 && selectedBottoms.length === 0) {
-      alert("请至少选择上装或下装！");
+    // 验证：有连衣裙，或者有上装+下装
+    const hasDress = selectedDress !== null;
+    const hasTopAndBottom = selectedTops.length > 0 || selectedBottoms.length > 0;
+    
+    if (!hasDress && !hasTopAndBottom) {
+      showError("请选择连衣裙，或者选择上装/下装！");
       return;
     }
 
     // 如果上传了真实照片，直接使用
     if (realPhoto) {
       setSuggestion({
+        dressId: selectedDress,
         topIds: selectedTops,
         bottomIds: selectedBottoms,
         shoesIds: selectedShoes,
@@ -149,18 +157,25 @@ const Stylist: React.FC = () => {
     }
     
     if (!profile?.photoFront) {
-      alert("请先上传身体档案照片，或上传真实穿着照片！");
+      showError("请先上传身体档案照片，或上传真实穿着照片！");
       return;
     }
 
     setLoading(true);
     try {
-      // 传递手动选择的服装ID（取第一个作为AI生成的主要参考）
-      const result = await aiApi.outfit(weather, occasion, selectedTops[0], selectedBottoms[0], selectedShoes[0]);
+      // 传递手动选择的服装ID
+      // 如果有连衣裙，优先使用连衣裙；否则使用上装+下装
+      const result = await aiApi.outfit(
+        weather, 
+        occasion, 
+        selectedDress || selectedTops[0], 
+        selectedDress ? undefined : selectedBottoms[0], 
+        selectedShoes[0]
+      );
       setSuggestion(result);
     } catch (e) {
       console.error(e);
-      alert("生成试穿图失败，请检查网络。");
+      showError("生成试穿图失败，请检查网络。");
     } finally {
       setLoading(false);
     }
@@ -172,8 +187,9 @@ const Stylist: React.FC = () => {
     try {
       console.log('开始保存搭配...');
       // 处理多选情况，将数组转为逗号分隔的字符串存储，或只取第一个
-      const topId = suggestion.topIds ? suggestion.topIds[0] : suggestion.topId;
-      const bottomId = suggestion.bottomIds ? suggestion.bottomIds[0] : suggestion.bottomId;
+      const dressId = suggestion.dressId;
+      const topId = !dressId ? (suggestion.topIds ? suggestion.topIds[0] : suggestion.topId) : undefined;
+      const bottomId = !dressId ? (suggestion.bottomIds ? suggestion.bottomIds[0] : suggestion.bottomId) : undefined;
       const shoesId = suggestion.shoesIds ? suggestion.shoesIds[0] : suggestion.shoesId;
       
       await outfitsApi.save({
@@ -181,6 +197,7 @@ const Stylist: React.FC = () => {
         tags: customTags,
         weather,
         occasion,
+        dressId,
         topId,
         bottomId,
         shoesId,
@@ -188,13 +205,14 @@ const Stylist: React.FC = () => {
         tryonImage: suggestion.tryOnImage || undefined,
       });
       console.log('保存成功');
-      alert("已保存到已保存搭配！");
+      showSuccess("已保存到已保存搭配！");
       // 清空并刷新
       setSuggestion(null);
       setCustomName('');
       setCustomTags([]);
       setSelectedTops([]);
       setSelectedBottoms([]);
+      setSelectedDress(null);
       setSelectedShoes([]);
       setSelectedAccessories([]);
       setManualMode(false);
@@ -206,7 +224,7 @@ const Stylist: React.FC = () => {
       }, 200);
     } catch (e: any) {
       console.error("保存失败", e);
-      alert("保存失败: " + (e?.message || '未知错误'));
+      showError("保存失败: " + (e?.message || '未知错误'));
     }
   };
 
@@ -218,15 +236,23 @@ const Stylist: React.FC = () => {
 
   // 删除搭配
   const handleDeleteOutfit = async (id: string) => {
-    if (!confirm('确定要删除这个搭配吗？')) return;
+    const confirmed = await showConfirm({
+      title: '删除搭配',
+      message: '确定要删除这个搭配吗？删除后无法恢复。',
+      confirmText: '删除',
+      cancelText: '取消',
+      type: 'danger',
+    });
+    
+    if (!confirmed) return;
     
     try {
       await outfitsApi.delete(id);
-      alert("搭配已删除！");
+      showSuccess("搭配已删除！");
       loadSavedOutfits();
     } catch (e: any) {
       console.error("删除失败", e);
-      alert("删除失败: " + (e?.message || '未知错误'));
+      showError("删除失败: " + (e?.message || '未知错误'));
     }
   };
 
@@ -245,14 +271,14 @@ const Stylist: React.FC = () => {
         reasoning: editingOutfit.reasoning,
         tryonImage: editingOutfit.tryonImage || undefined,
       });
-      alert("搭配已更新！");
+      showSuccess("搭配已更新！");
       setEditingOutfit(null);
       setCustomName('');
       setCustomTags([]);
       loadSavedOutfits();
     } catch (e) {
       console.error("更新失败", e);
-      alert("更新失败");
+      showError("更新失败");
     }
   };
 
@@ -272,6 +298,7 @@ const Stylist: React.FC = () => {
   // 按类别筛选服装
   const tops = wardrobe.filter(item => item.category === ClothingCategory.TOP || item.category === '上装');
   const bottoms = wardrobe.filter(item => item.category === ClothingCategory.BOTTOM || item.category === '下装');
+  const dresses = wardrobe.filter(item => item.category === ClothingCategory.DRESS || item.category === '连衣裙');
   const shoes = wardrobe.filter(item => item.category === ClothingCategory.SHOES || item.category === '鞋履');
   const accessories = wardrobe.filter(item => 
     item.category === ClothingCategory.ACCESSORY || 
@@ -383,9 +410,54 @@ const Stylist: React.FC = () => {
             {/* 手动选择模式 - 服装选择器 */}
             {manualMode && (
               <div className="space-y-4 border-t border-slate-100 pt-4">
-                {/* 上装选择 */}
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">上装</label>
+                {/* 连衣裙选择 */}
+                {dresses.length > 0 && (
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">
+                      连衣裙
+                      <span className="text-xs text-slate-400 ml-2">(选择连衣裙后无需选择上装/下装)</span>
+                    </label>
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {dresses.map(item => (
+                        <div
+                          key={item.id}
+                          className={`flex-shrink-0 relative ${selectedDress === item.id ? 'ring-2 ring-pink-500 rounded-lg' : ''}`}
+                        >
+                          <div className="aspect-[9/16] w-20 rounded-lg overflow-hidden bg-slate-50">
+                            <ImageRenderer
+                              src={item.imageFront}
+                              alt={item.name}
+                              aspectRatio="9/16"
+                              onClick={() => {
+                                if (selectedDress === item.id) {
+                                  setSelectedDress(null);
+                                } else {
+                                  setSelectedDress(item.id);
+                                  // 选择连衣裙时清空上装和下装
+                                  setSelectedTops([]);
+                                  setSelectedBottoms([]);
+                                }
+                              }}
+                              className="w-full h-full"
+                            />
+                          </div>
+                          {selectedDress === item.id && (
+                            <div className="absolute inset-0 bg-pink-500/20 rounded-lg flex items-center justify-center pointer-events-none">
+                              <span className="text-pink-600 font-bold text-lg">✓</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 上装选择 - 有连衣裙时禁用 */}
+                <div className={selectedDress ? 'opacity-50 pointer-events-none' : ''}>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">
+                    上装
+                    {selectedDress && <span className="text-xs text-pink-500 ml-2">(已选择连衣裙)</span>}
+                  </label>
                   <div className="flex gap-2 overflow-x-auto pb-2">
                     {tops.length === 0 ? (
                       <span className="text-sm text-slate-400">衣橱中没有上装</span>
@@ -415,35 +487,40 @@ const Stylist: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 下装选择 */}
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">下装</label>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {bottoms.length === 0 ? (
-                      <span className="text-sm text-slate-400">衣橱中没有下装</span>
-                    ) : (
-                      bottoms.map(item => (
-                        <div
-                          key={item.id}
-                          className={`flex-shrink-0 relative ${selectedBottoms.includes(item.id) ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
-                        >
-                          <div className="aspect-[9/16] w-20 rounded-lg overflow-hidden bg-slate-50">
-                            <ImageRenderer
-                              src={item.imageFront}
-                              alt={item.name}
-                              aspectRatio="9/16"
-                              onClick={() => toggleSelection(item.id, selectedBottoms, setSelectedBottoms)}
-                              className="w-full h-full"
-                            />
-                          </div>
-                          {selectedBottoms.includes(item.id) && (
-                            <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center pointer-events-none">
-                              <span className="text-indigo-600 font-bold text-lg">✓</span>
+                {/* 下装选择 - 有连衣裙时禁用 */}
+                <div className={selectedDress ? 'opacity-50 pointer-events-none' : ''}>
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">
+                      下装
+                      {selectedDress && <span className="text-xs text-pink-500 ml-2">(已选择连衣裙)</span>}
+                    </label>
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {bottoms.length === 0 ? (
+                        <span className="text-sm text-slate-400">衣橱中没有下装</span>
+                      ) : (
+                        bottoms.map(item => (
+                          <div
+                            key={item.id}
+                            className={`flex-shrink-0 relative ${selectedBottoms.includes(item.id) ? 'ring-2 ring-indigo-500 rounded-lg' : ''}`}
+                          >
+                            <div className="aspect-[9/16] w-20 rounded-lg overflow-hidden bg-slate-50">
+                              <ImageRenderer
+                                src={item.imageFront}
+                                alt={item.name}
+                                aspectRatio="9/16"
+                                onClick={() => toggleSelection(item.id, selectedBottoms, setSelectedBottoms)}
+                                className="w-full h-full"
+                              />
                             </div>
-                          )}
-                        </div>
-                      ))
-                    )}
+                            {selectedBottoms.includes(item.id) && (
+                              <div className="absolute inset-0 bg-indigo-500/20 rounded-lg flex items-center justify-center pointer-events-none">
+                                <span className="text-indigo-600 font-bold text-lg">✓</span>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -480,10 +557,15 @@ const Stylist: React.FC = () => {
                 </div>
 
                 {/* 已选择展示 */}
-                {(selectedTops.length > 0 || selectedBottoms.length > 0 || selectedShoes.length > 0) && (
+                {(selectedDress || selectedTops.length > 0 || selectedBottoms.length > 0 || selectedShoes.length > 0) && (
                   <div className="bg-indigo-50 rounded-xl p-3">
                     <p className="text-sm font-medium text-indigo-700 mb-2">已选择：</p>
                     <div className="flex flex-wrap gap-2">
+                      {selectedDress && (
+                        <span className="px-2 py-1 bg-white text-pink-600 rounded-full text-xs font-medium">
+                          连衣裙: {getById(selectedDress)?.name}
+                        </span>
+                      )}
                       {selectedTops.map(id => (
                         <span key={id} className="px-2 py-1 bg-white text-indigo-600 rounded-full text-xs">
                           上装: {getById(id)?.name}
@@ -545,7 +627,7 @@ const Stylist: React.FC = () => {
 
                 <button
                   onClick={handleManualGenerate}
-                  disabled={loading || (selectedTops.length === 0 && selectedBottoms.length === 0)}
+                  disabled={loading || (!selectedDress && selectedTops.length === 0 && selectedBottoms.length === 0)}
                   className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loading ? (
@@ -639,6 +721,41 @@ const Stylist: React.FC = () => {
 
               {/* Outfit Items - 支持单选和多选 */}
               <div className="flex gap-3 overflow-x-auto pb-2">
+                {/* 连衣裙 - 支持单选或多选 */}
+                {(suggestion.dressId || suggestion.dressIds?.length > 0) && (
+                  <>
+                    {suggestion.dressIds ? (
+                      // 多选模式
+                      suggestion.dressIds.map((id: string) => (
+                        <div key={id} className="flex-shrink-0">
+                          <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                            <ImageRenderer
+                              src={getItem(id)?.imageFront}
+                              alt="连衣裙"
+                              aspectRatio="9/16"
+                              className="w-full h-full"
+                            />
+                          </div>
+                          <span className="text-xs text-slate-500">{getItem(id)?.name || '连衣裙'}</span>
+                        </div>
+                      ))
+                    ) : (
+                      // 单选模式
+                      <div className="flex-shrink-0">
+                        <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-slate-50 mb-1">
+                          <ImageRenderer
+                            src={getItem(suggestion.dressId)?.imageFront}
+                            alt="连衣裙"
+                            aspectRatio="9/16"
+                            className="w-full h-full"
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500">连衣裙</span>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {/* 上装 - 支持单选(suggestion.topId)或多选(suggestion.topIds) */}
                 {(suggestion.topId || suggestion.topIds?.length > 0) && (
                   <>
