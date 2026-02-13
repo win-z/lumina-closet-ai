@@ -1,5 +1,7 @@
 # Lumina Closet AI - AI智能衣橱助手
 
+**在线地址**: https://aicloset5210.netlify.app/
+
 ## 项目概述
 
 Lumina Closet AI 是一款 AI 驱动的智能个人衣橱助手应用，帮助用户管理服装、获取穿搭建议、尝试虚拟穿搭。
