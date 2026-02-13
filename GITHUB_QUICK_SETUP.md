@@ -101,7 +101,7 @@ cat .vercel/project.json
 
 | 名称 | 值 | 说明 |
 |------|-----|------|
-| `VERCEL_TOKEN` | `vcp_7bojL9JcB9Ykeh1uyTWNQvVo1tSTYo5LcS29PXTXZHamNC2jpZ1rnDkj` | Vercel Token（已有） |
+| `VERCEL_TOKEN` | 你的Vercel Token | 从 https://vercel.com/account/tokens 获取 |
 | `VERCEL_ORG_ID` | `team_xxxxx` | 从上一步获取 |
 | `VERCEL_PROJECT_ID` | `prj_xxxxx` | 从上一步获取 |
 

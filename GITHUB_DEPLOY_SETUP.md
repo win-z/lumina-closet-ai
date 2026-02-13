@@ -104,7 +104,7 @@ cat .vercel/project.json
 
 #### Secret 1: VERCEL_TOKEN
 - **Name**: `VERCEL_TOKEN`
-- **Secret**: `vcp_7bojL9JcB9Ykeh1uyTWNQvVo1tSTYo5LcS29PXTXZHamNC2jpZ1rnDkj`
+- **Secret**: `你的Vercel Token`（从 https://vercel.com/account/tokens 获取）
 - 点击 "**Add secret**"
 
 #### Secret 2: VERCEL_ORG_ID
