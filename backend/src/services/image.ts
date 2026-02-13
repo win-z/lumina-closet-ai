@@ -103,13 +103,14 @@ export class VirtualTryOnService {
     top?: ClothingItem,
     bottom?: ClothingItem,
     occasion: string = '日常',
-    reasoning?: string
+    customPrompt?: string
   ): Promise<string> {
     logger.info('生成虚拟试穿图片...', { 
       occasion, 
       hasTop: !!top, 
       hasBottom: !!bottom,
-      hasProfile: !!profile.photoFront 
+      hasProfile: !!profile.photoFront,
+      hasCustomPrompt: !!customPrompt
     });
 
     // 检查是否有足够的数据
@@ -121,13 +122,14 @@ export class VirtualTryOnService {
     }
 
     try {
-      // 尝试使用豆包API生成真实试穿图
+      // 尝试使用豆包API生成真实试穿图，传入自定义提示词
       const resultImage = await doubaoService.generateVirtualTryOn(
         profile, 
         top, 
         bottom, 
         undefined, // shoes 暂时不用
-        occasion
+        occasion,
+        customPrompt
       );
       
       logger.info('虚拟试穿图片生成成功（豆包API）');
@@ -136,7 +138,7 @@ export class VirtualTryOnService {
       logger.error('豆包API生成失败，使用SVG预览:', error);
       
       // 如果豆包API失败，使用SVG作为后备
-      const resultImage = createOutfitPreviewImage(profile, top, bottom, occasion, reasoning);
+      const resultImage = createOutfitPreviewImage(profile, top, bottom, occasion, customPrompt);
       logger.info('SVG预览图生成完成');
       return resultImage;
     }

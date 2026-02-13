@@ -1,0 +1,108 @@
+# 部署完成！
+
+## 📦 部署包已生成
+
+文件名：`lumina-closet-dist.tar.gz` (6.7MB)
+位置：`C:\Users\Lenovo\Desktop\lumina-closet-ai-main\closet\`
+
+## 🚀 上传到 Vercel 步骤
+
+### 方法 1：Vercel CLI（推荐，你已经有 Token）
+
+打开 **CMD 命令提示符**（不是 PowerShell），然后运行：
+
+```cmd
+cd C:\Users\Lenovo\Desktop\lumina-closet-ai-main\closet
+vercel login
+vercel --prod
+```
+
+然后按提示操作即可。
+
+### 方法 2：Vercel 网站手动上传（最简单）
+
+1. **访问**
+   - 打开 https://vercel.com/new
+   - 用你的账号登录
+
+2. **创建项目**
+   - 在页面上找到 "**Upload**" 或 "**Import**" 按钮
+   - 选择 "**Deploy from a different Git provider**"
+   - 或直接访问：https://vercel.com/new/clone
+
+3. **上传文件**
+   - 解压 `lumina-closet-dist.tar.gz`
+   - 拖拽 `dist` 文件夹到 Vercel 页面
+   - 或者点击上传按钮选择 dist 文件夹
+
+4. **配置**
+   - Project Name: `lumina-closet-ai` (或你喜欢的名字)
+   - Framework Preset: **Other**
+   - Build Command: (留空)
+   - Output Directory: `dist` (如果上传的是dist内文件) 或 `./` (如果直接上传dist文件夹)
+
+5. **部署**
+   - 点击 "**Deploy**"
+   - 等待 1-2 分钟
+   - 获得网站地址如：`https://lumina-closet-ai-xxxxx.vercel.app`
+
+### 方法 3：GitHub 部署（推荐后续更新）
+
+1. 把代码推送到 GitHub 仓库
+2. 在 Vercel 导入该仓库
+3. 设置：
+   - Framework: **Other**
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+4. 以后每次 push 代码会自动重新部署
+
+---
+
+## 📱 手机安装指南
+
+部署成功后：
+
+### iPhone (Safari)
+1. 用 Safari 打开部署后的网址
+2. 点击底部分享按钮 ⬆️
+3. 选择 "**添加到主屏幕**"
+4. 点击 "**添加**"
+
+### Android (Chrome)
+1. 用 Chrome 打开部署后的网址
+2. 会弹出 "**Add to Home screen**" 提示，点击
+3. 或在菜单中选择 "**添加到主屏幕**"
+4. 点击 "**安装**"
+
+---
+
+## 🔄 后续更新代码
+
+修改代码后需要重新部署：
+
+```bash
+# 1. 重新构建
+npm run build
+
+# 2. 重新部署（方法1）
+vercel --prod
+
+# 2. 或重新上传 dist 文件夹（方法2）
+```
+
+如果使用了 GitHub 方式，只需 `git push` 即可自动重新部署。
+
+---
+
+## ✅ 已完成功能
+
+- [x] PWA 配置完成
+- [x] Service Worker 自动生成
+- [x] 图标全部就位（8种尺寸）
+- [x] iOS 启动屏幕（6种尺寸）
+- [x] 自动更新检测（每5分钟）
+- [x] 更新提示 UI
+- [x] 离线缓存支持
+- [x] 构建完成，dist 文件夹就绪
+
+现在只需要上传到 Vercel 即可使用！

@@ -273,7 +273,7 @@ export const aiApi = {
     });
   },
 
-  outfit: async (weather: string, occasion: string, topId?: string, bottomId?: string, shoesId?: string) => {
+  outfit: async (weather: string, occasion: string, topId?: string, bottomId?: string, shoesId?: string, customPrompt?: string) => {
     return request<{
       topId?: string;
       bottomId?: string;
@@ -284,7 +284,7 @@ export const aiApi = {
       '/api/ai/outfit',
       {
         method: 'POST',
-        body: JSON.stringify({ weather, occasion, topId, bottomId, shoesId }),
+        body: JSON.stringify({ weather, occasion, topId, bottomId, shoesId, customPrompt }),
       }
     );
   },

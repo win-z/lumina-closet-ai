@@ -10,6 +10,7 @@ import BodyProfileComponent from './components/BodyProfile';
 import Stylist from './components/Stylist';
 import Analytics from './components/Analytics';
 import Diary from './components/Diary';
+import { PWAUpdateToast } from './src/components/PWAUpdateToast';
 import { Shirt, User, Sparkles, BarChart2, CalendarDays } from 'lucide-react';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { ToastProvider, useToast } from './src/context/ToastContext';
@@ -43,7 +44,12 @@ const AppContent: React.FC = () => {
 
   // 未登录显示登录界面
   if (!user || !user.isLoggedIn) {
-    return <LoginView onLogin={login} />;
+    return (
+      <>
+        <LoginView onLogin={login} />
+        <PWAUpdateToast position="bottom" />
+      </>
+    );
   }
 
   // 已登录显示主界面
@@ -96,6 +102,9 @@ const AppContent: React.FC = () => {
           <NavButton active={view === 'profile'} onClick={() => setView('profile')} icon={<User size={22} />} label="我的" />
         </nav>
       </main>
+      
+      {/* PWA 更新提示 */}
+      <PWAUpdateToast position="bottom" />
     </div>
   );
 };

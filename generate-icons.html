@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumina Closet AI - 图标生成器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        h1 {
+            color: #1f2937;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #6b7280;
+            text-align: center;
+            margin-bottom: 32px;
+            font-size: 14px;
+        }
+        .preview {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+        }
+        .preview-item {
+            text-align: center;
+        }
+        .preview-item img {
+            border-radius: 22%;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .preview-item span {
+            display: block;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .button {
+            display: block;
+            width: 100%;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 12px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+        }
+        .button:active {
+            transform: translateY(0);
+        }
+        .info {
+            background: #f3f4f6;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 24px;
+        }
+        .info h3 {
+            color: #374151;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .info ul {
+            color: #6b7280;
+            font-size: 13px;
+            padding-left: 20px;
+            line-height: 1.8;
+        }
+        #canvas-container {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lumina Closet AI</h1>
+        <p class="subtitle">PWA 图标生成器</p>
+        
+        <div class="preview">
+            <div class="preview-item">
+                <canvas id="preview-72" width="72" height="72"></canvas>
+                <span>72x72</span>
+            </div>
+            <div class="preview-item">
+                <canvas id="preview-192" width="192" height="192"></canvas>
+                <span>192x192</span>
+            </div>
+            <div class="preview-item">
+                <canvas id="preview-512" width="512" height="512"></canvas>
+                <span>512x512</span>
+            </div>
+        </div>
+        
+        <button class="button" onclick="generateAllIcons()">
+            下载所有图标
+        </button>
+        <button class="button" style="background: #10b981;" onclick="generateSplashScreens()">
+            下载启动屏幕
+        </button>
+        
+        <div class="info">
+            <h3>使用方法：</h3>
+            <ul>
+                <li>点击"下载所有图标"按钮</li>
+                <li>将所有下载的图标文件放入 public 文件夹</li>
+                <li>运行 npm run build 构建项目</li>
+                <li>部署到服务器后即可在手机上安装</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div id="canvas-container"></div>
+
+    <script>
+        // SVG 图标模板
+        const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+            <defs>
+                <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#6366f1"/>
+                    <stop offset="100%" style="stop-color:#8b5cf6"/>
+                </linearGradient>
+            </defs>
+            <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+            <g transform="translate(256, 256)">
+                <path d="M-10,-80 Q-10,-100 0,-100 Q10,-100 10,-80" stroke="white" stroke-width="12" fill="none" stroke-linecap="round"/>
+                <path d="M-80,-30 L0,-70 L80,-30" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M-70,-20 L-90,20 L-70,30 L-60,10 L-60,120 L60,120 L60,10 L70,30 L90,20 L70,-20 Q0,-40 -70,-20" fill="white"/>
+                <path d="M-30,-20 L0,10 L30,-20" stroke="#6366f1" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+            <circle cx="100" cy="120" r="8" fill="white" opacity="0.6"/>
+            <circle cx="420" cy="150" r="6" fill="white" opacity="0.6"/>
+            <circle cx="400" cy="380" r="10" fill="white" opacity="0.6"/>
+            <circle cx="120" cy="400" r="7" fill="white" opacity="0.6"/>
+        </svg>`;
+
+        // 生成单个图标
+        function generateIcon(size, name) {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                const img = new Image();
+                img.onload = function() {
+                    ctx.drawImage(img, 0, 0, size, size);
+                    
+                    // 下载
+                    const link = document.createElement('a');
+                    link.download = name;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    
+                    resolve();
+                };
+                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(iconSvg)));
+            });
+        }
+
+        // 生成所有图标
+        async function generateAllIcons() {
+            const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+            
+            for (const size of sizes) {
+                await generateIcon(size, `icon-${size}x${size}.png`);
+                await new Promise(r => setTimeout(r, 100)); // 延迟避免浏览器阻塞
+            }
+            
+            alert('所有图标已下载完成！\n请将文件放入 public 文件夹中。');
+        }
+
+        // 生成启动屏幕
+        async function generateSplashScreens() {
+            const screens = [
+                { width: 640, height: 1136, name: 'splash-640x1136.png' },   // iPhone SE
+                { width: 750, height: 1334, name: 'splash-750x1334.png' },   // iPhone 8
+                { width: 1242, height: 2208, name: 'splash-1242x2208.png' }, // iPhone 8 Plus
+                { width: 1125, height: 2436, name: 'splash-1125x2436.png' }, // iPhone X/XS
+                { width: 1170, height: 2532, name: 'splash-1170x2532.png' }, // iPhone 12/13/14
+                { width: 1284, height: 2778, name: 'splash-1284x2778.png' }, // iPhone 12/13/14 Pro Max
+            ];
+            
+            for (const screen of screens) {
+                await generateSplashScreen(screen);
+                await new Promise(r => setTimeout(r, 100));
+            }
+            
+            alert('启动屏幕已下载完成！');
+        }
+
+        // 生成单个启动屏幕
+        function generateSplashScreen({ width, height, name }) {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                // 背景渐变
+                const gradient = ctx.createLinearGradient(0, 0, width, height);
+                gradient.addColorStop(0, '#6366f1');
+                gradient.addColorStop(1, '#8b5cf6');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, width, height);
+                
+                // 绘制图标（居中）
+                const iconSize = Math.min(width, height) * 0.3;
+                const img = new Image();
+                img.onload = function() {
+                    const x = (width - iconSize) / 2;
+                    const y = (height - iconSize) / 2 - 50;
+                    ctx.drawImage(img, x, y, iconSize, iconSize);
+                    
+                    // 添加文字
+                    ctx.fillStyle = 'white';
+                    ctx.font = `bold ${width * 0.05}px -apple-system, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Lumina Closet', width / 2, y + iconSize + 60);
+                    
+                    ctx.font = `${width * 0.03}px -apple-system, sans-serif`;
+                    ctx.globalAlpha = 0.8;
+                    ctx.fillText('AI智能衣橱助手', width / 2, y + iconSize + 100);
+                    
+                    // 下载
+                    const link = document.createElement('a');
+                    link.download = name;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    
+                    resolve();
+                };
+                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(iconSvg)));
+            });
+        }
+
+        // 预览图标
+        function renderPreviews() {
+            const sizes = [72, 192, 512];
+            sizes.forEach(size => {
+                const canvas = document.getElementById(`preview-${size}`);
+                const ctx = canvas.getContext('2d');
+                
+                const img = new Image();
+                img.onload = function() {
+                    ctx.drawImage(img, 0, 0, size, size);
+                };
+                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(iconSvg)));
+            });
+        }
+
+        // 初始化
+        renderPreviews();
+    </script>
+</body>
+</html>

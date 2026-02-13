@@ -106,9 +106,10 @@ export class AiService {
     wardrobe: ClothingItem[],
     weather: string,
     occasion: string,
-    profile: BodyProfile
+    profile: BodyProfile,
+    customPrompt?: string
   ): Promise<OutfitSuggestion> {
-    logger.info('生成穿搭建议...');
+    logger.info('生成穿搭建议...', { hasCustomPrompt: !!customPrompt });
 
     const inventory = wardrobe.map(item => ({
       id: item.id,
@@ -118,11 +119,33 @@ export class AiService {
       tags: item.tags,
     }));
 
-    const prompt = `作为专业时尚造型师，根据以下信息推荐穿搭：
+    // 构建提示词，如果有自定义提示词则优先使用
+    let promptContent = '';
+    
+    if (customPrompt && customPrompt.trim()) {
+      promptContent = `作为专业时尚造型师，根据用户的个性化需求推荐穿搭：
 
 用户档案: 身高${profile.heightCm}cm, 体重${profile.weightKg}kg
-天气: ${weather}
-场合: ${occasion}
+用户要求: ${customPrompt}
+
+可用衣橱:
+${JSON.stringify(inventory, null, 2)}
+
+请根据用户的要求，从衣橱中选择合适的单品推荐一套搭配（上装+下装+鞋履 或 连衣裙+鞋履），返回JSON格式：
+{
+  "topId": "上装ID",
+  "bottomId": "下装ID", 
+  "shoesId": "鞋履ID",
+  "reasoning": "搭配理由（中文，100字以内，说明为什么符合用户要求）",
+  "occasion": "场合"
+}
+只返回JSON。`;
+    } else {
+      promptContent = `作为专业时尚造型师，根据以下信息推荐穿搭：
+
+用户档案: 身高${profile.heightCm}cm, 体重${profile.weightKg}kg
+天气: ${weather || '适宜'}
+场合: ${occasion || '日常'}
 
 可用衣橱:
 ${JSON.stringify(inventory, null, 2)}
@@ -136,10 +159,11 @@ ${JSON.stringify(inventory, null, 2)}
   "occasion": "场合"
 }
 只返回JSON。`;
+    }
 
     const response = await this.chatRequest({
       model: this.textModel,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: promptContent }],
       max_tokens: 1000,
       temperature: 0.7,
     });

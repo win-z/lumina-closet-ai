@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "name": "lumina-closet-ai",
+  "public": true,
+  "github": {
+    "enabled": false
+  }
+}

@@ -34,15 +34,17 @@ export class DoubaoService {
   /**
    * 生成虚拟试穿照片
    * 使用多张参考图（用户照片 + 服装照片）
+   * 支持自定义提示词
    */
   async generateVirtualTryOn(
     profile: BodyProfile,
     top?: ClothingItem,
     bottom?: ClothingItem,
     shoes?: ClothingItem,
-    occasion: string = '日常'
+    occasion: string = '日常',
+    customPrompt?: string
   ): Promise<string> {
-    logger.info('开始生成虚拟试穿...');
+    logger.info('开始生成虚拟试穿...', { hasCustomPrompt: !!customPrompt });
 
     // 收集所有参考图片URL
     const referenceImages: string[] = [];
@@ -88,8 +90,8 @@ export class DoubaoService {
       logger.info(`参考图${index + 1}: ${url}`);
     });
 
-    // 构建提示词
-    const prompt = this.buildPrompt(profile, top, bottom, shoes, occasion);
+    // 构建提示词，传入自定义提示词
+    const prompt = this.buildPrompt(profile, top, bottom, shoes, occasion, customPrompt);
     logger.info('提示词:', prompt);
 
     // 构建请求体
@@ -138,13 +140,15 @@ export class DoubaoService {
 
   /**
    * 构建生成提示词
+   * 支持自定义提示词
    */
   private buildPrompt(
     profile: BodyProfile,
     top?: ClothingItem,
     bottom?: ClothingItem,
     shoes?: ClothingItem,
-    occasion: string = '日常'
+    occasion: string = '日常',
+    customPrompt?: string
   ): string {
     let prompt = `虚拟试穿照片生成任务。`;
 
@@ -179,7 +183,14 @@ export class DoubaoService {
 
     // 输出要求
     prompt += `【输出要求】`;
-    prompt += `场景：${occasion}。`;
+    
+    // 如果有自定义提示词，优先使用
+    if (customPrompt && customPrompt.trim()) {
+      prompt += `用户特殊要求：${customPrompt.trim()}。`;
+    } else {
+      prompt += `场景：${occasion}。`;
+    }
+    
     prompt += `生成9:16比例的图片，手机竖屏全屏显示。`;
     prompt += `背景必须是纯色背景（纯白色、浅灰色或米色），不能有其他物体、图案、文字、logo或装饰元素。`;
     prompt += `人物必须站在图片正中间，头顶和脚下都要留白5-10%的空间，确保人物全身完整显示，头部和脚部都不能被截断。`;

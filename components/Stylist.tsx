@@ -21,9 +21,10 @@ const Stylist: React.FC = () => {
   const { user, loadUserData } = useApp();
   const { showSuccess, showError, showConfirm } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'generate' | 'saved'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'saved'>('saved');
   const [weather, setWeather] = useState("晴天, 24°C");
   const [occasion, setOccasion] = useState("周末约会");
+  const [customPrompt, setCustomPrompt] = useState(''); // AI推荐自定义输入
   const [suggestion, setSuggestion] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [savedOutfits, setSavedOutfits] = useState<any[]>([]);
@@ -101,7 +102,8 @@ const Stylist: React.FC = () => {
     setLoading(true);
     setSuggestion(null);
     try {
-      const result = await aiApi.outfit(weather, occasion);
+      // 使用自定义输入作为提示词，如果没有则使用默认空字符串
+      const result = await aiApi.outfit('', '', undefined, undefined, undefined, customPrompt);
       setSuggestion(result);
     } catch (e) {
       console.error(e);
@@ -379,33 +381,57 @@ const Stylist: React.FC = () => {
             </button>
           </div>
 
-          {/* Input Section */}
+          {/* Input Section - AI推荐模式显示自定义输入，手动模式显示天气/场合 */}
           <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
-            <div>
-              <label className="text-sm font-medium text-slate-600 mb-2 block">
-                <CloudSun size={16} className="inline mr-1" /> 天气
-              </label>
-              <input
-                type="text"
-                value={weather}
-                onChange={(e) => setWeather(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
-                placeholder="例如：晴天, 24°C"
-              />
-            </div>
+            {/* AI推荐模式 - 自定义输入 */}
+            {!manualMode && (
+              <div>
+                <label className="text-sm font-medium text-slate-600 mb-2 block">
+                  <Sparkles size={16} className="inline mr-1" /> 搭配要求（可选）
+                </label>
+                <textarea
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none"
+                  placeholder="例如：我想要一套适合春天约会的清新风格搭配，颜色要淡雅一些..."
+                  rows={3}
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  留下你的搭配想法，AI会根据你的衣橱智能推荐
+                </p>
+              </div>
+            )}
 
-            <div>
-              <label className="text-sm font-medium text-slate-600 mb-2 block">
-                <Calendar size={16} className="inline mr-1" /> 场合
-              </label>
-              <input
-                type="text"
-                value={occasion}
-                onChange={(e) => setOccasion(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
-                placeholder="例如：周末约会"
-              />
-            </div>
+            {/* 手动模式 - 显示天气和场合 */}
+            {manualMode && (
+              <>
+                <div>
+                  <label className="text-sm font-medium text-slate-600 mb-2 block">
+                    <CloudSun size={16} className="inline mr-1" /> 天气
+                  </label>
+                  <input
+                    type="text"
+                    value={weather}
+                    onChange={(e) => setWeather(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                    placeholder="例如：晴天, 24°C"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-slate-600 mb-2 block">
+                    <Calendar size={16} className="inline mr-1" /> 场合
+                  </label>
+                  <input
+                    type="text"
+                    value={occasion}
+                    onChange={(e) => setOccasion(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                    placeholder="例如：周末约会"
+                  />
+                </div>
+              </>
+            )}
 
             {/* 手动选择模式 - 服装选择器 */}
             {manualMode && (

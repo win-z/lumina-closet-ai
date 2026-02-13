@@ -17,8 +17,8 @@ export class ClothingItemModel {
 
     await execute(
       `INSERT INTO clothing_items (
-         id, user_id, image_front, category, name, color,
-         brand, price, purchase_date, tags, last_worn, created_at, updated_at
+         id, user_id, image_front, category, name, colors,
+         brand, purchase_price, purchase_date, ai_tags, last_worn_date, created_at, updated_at
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, userId, data.imageFront || null, data.category, data.name, data.color, data.brand || null, data.price || null, data.purchaseDate || null, JSON.stringify(data.tags), data.lastWorn || null, now, now]
     );
@@ -36,8 +36,8 @@ export class ClothingItemModel {
    */
   static async findById(id: string, userId?: string): Promise<ClothingItem | null> {
     let queryStr = `SELECT id, image_front as imageFront,
-            category, name, color, brand, price, purchase_date as purchaseDate,
-            tags, last_worn as lastWorn, created_at as createdAt, updated_at as updatedAt
+            category, name, colors as color, brand, purchase_price as price, purchase_date as purchaseDate,
+            ai_tags as tags, last_worn_date as lastWorn, created_at as createdAt, updated_at as updatedAt
      FROM clothing_items
      WHERE id = ?`;
     const params: unknown[] = [id];
@@ -63,8 +63,8 @@ export class ClothingItemModel {
     offset?: number;
   }): Promise<ClothingItem[]> {
     let queryStr = `SELECT id, image_front as imageFront,
-           category, name, color, brand, price, purchase_date as purchaseDate,
-           tags, last_worn as lastWorn, created_at as createdAt, updated_at as updatedAt
+           category, name, colors as color, brand, purchase_price as price, purchase_date as purchaseDate,
+           ai_tags as tags, last_worn_date as lastWorn, created_at as createdAt, updated_at as updatedAt
     FROM clothing_items
     WHERE user_id = ?`;
     const params: unknown[] = [userId];
@@ -102,8 +102,8 @@ export class ClothingItemModel {
     const placeholders = ids.map(() => '?').join(',');
     const rows = await query<any>(
       `SELECT id, user_id as userId, image_front as imageFront,
-              category, name, color, brand, price, purchase_date as purchaseDate,
-              tags, last_worn as lastWorn, created_at as createdAt, updated_at as updatedAt
+              category, name, colors as color, brand, purchase_price as price, purchase_date as purchaseDate,
+              ai_tags as tags, last_worn_date as lastWorn, created_at as createdAt, updated_at as updatedAt
        FROM clothing_items
        WHERE id IN (${placeholders})`,
       ids
@@ -133,7 +133,13 @@ export class ClothingItemModel {
 
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
-        const snakeCase = field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        let snakeCase = field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        // 特殊处理字段名映射
+        if (snakeCase === 'color') {
+          snakeCase = 'colors';
+        } else if (snakeCase === 'tags') {
+          snakeCase = 'ai_tags';
+        }
         fields.push(`${snakeCase} = ?`);
         values.push(field === 'tags' ? JSON.stringify(data[field]) : data[field]);
       }
@@ -176,7 +182,7 @@ export class ClothingItemModel {
    * 更新最后穿着日期
    */
   static async updateLastWorn(id: string, userId: string, date: string): Promise<void> {
-    await execute('UPDATE clothing_items SET last_worn = ?, updated_at = ? WHERE id = ? AND user_id = ?', [date, formatDate(), id, userId]);
+    await execute('UPDATE clothing_items SET last_worn_date = ?, updated_at = ? WHERE id = ? AND user_id = ?', [date, formatDate(), id, userId]);
   }
 }
 

@@ -25,11 +25,12 @@ const autoTagSchema = z.object({
 });
 
 const outfitSchema = z.object({
-  weather: z.string().min(1, '天气不能为空'),
-  occasion: z.string().min(1, '场合不能为空'),
+  weather: z.string().optional(),
+  occasion: z.string().optional(),
   topId: z.string().optional(),
   bottomId: z.string().optional(),
   shoesId: z.string().optional(),
+  customPrompt: z.string().optional(),
 });
 
 const tryOnSchema = z.object({
@@ -55,10 +56,11 @@ const autoTag = asyncHandler(async (req: Request, res: Response<ApiResponse>) =>
  * POST /api/ai/outfit
  * AI穿搭建议（硅基流动）
  * 支持手动选择模式：如果提供了topId/bottomId/shoesId，直接使用，不调用AI推荐
+ * 支持自定义提示词：如果提供了customPrompt，会加入到AI生成图像的提示词中
  */
 const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
   const userId = req.user!.userId;
-  const { weather, occasion, topId, bottomId, shoesId } = req.body;
+  const { weather, occasion, topId, bottomId, shoesId, customPrompt } = req.body;
 
   const wardrobe = await ClothingItemModel.findByUserId(userId);
   const profile = await BodyProfileModel.findByUserId(userId);
@@ -87,14 +89,14 @@ const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiRespons
       topId: top?.id,
       bottomId: bottom?.id,
       shoesId: shoes?.id,
-      reasoning: `手动选择搭配：${top ? '上装' : ''}${bottom ? ' + 下装' : ''}${shoes ? ' + 鞋履' : ''}，适合${occasion}`,
+      reasoning: `手动选择搭配：${top ? '上装' : ''}${bottom ? ' + 下装' : ''}${shoes ? ' + 鞋履' : ''}，适合${occasion || '日常'}`,
     };
   } else {
     // AI推荐模式：调用AI服务生成建议
     if (wardrobe.length < 2) throw Errors.badRequest('衣橱单品不足，无法生成建议');
     
-    logger.info('AI推荐模式');
-    suggestion = await aiService.suggestOutfit(wardrobe, weather, occasion, profile);
+    logger.info('AI推荐模式', { hasCustomPrompt: !!customPrompt });
+    suggestion = await aiService.suggestOutfit(wardrobe, weather || '', occasion || '', profile, customPrompt);
     
     top = wardrobe.find(w => w.id === suggestion.topId);
     bottom = wardrobe.find(w => w.id === suggestion.bottomId);
@@ -105,14 +107,15 @@ const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiRespons
 
   try {
     if (top || bottom) {
-      // 使用豆包API生成虚拟试穿图
+      // 使用豆包API生成虚拟试穿图，传入自定义提示词
       logger.info('开始生成虚拟试穿图', { 
         mode: isManualMode ? '手动选择' : 'AI推荐',
         top: top?.name, 
         bottom: bottom?.name,
-        hasProfilePhoto: !!profile.photoFront
+        hasProfilePhoto: !!profile.photoFront,
+        hasCustomPrompt: !!customPrompt
       });
-      tryOnImage = await virtualTryOnService.generate(profile, top, bottom, occasion);
+      tryOnImage = await virtualTryOnService.generate(profile, top, bottom, occasion || '日常', customPrompt);
       logger.info('虚拟试穿图生成完成');
     }
   } catch (error) {

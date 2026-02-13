@@ -12,21 +12,21 @@ export class UserModel {
   /**
    * 创建新用户
    */
-  static async create(email: string, passwordHash: string, username: string): Promise<UserAccount> {
+  static async create(email: string, passwordHash: string, name: string): Promise<UserAccount> {
     const id = generateId();
     const now = formatDate();
 
     await execute(
-      `INSERT INTO users (id, email, password_hash, username, created_at)
+      `INSERT INTO users (id, email, password_hash, name, created_at)
        VALUES (?, ?, ?, ?, ?)`,
-      [id, email, passwordHash, username, now]
+      [id, email, passwordHash, name, now]
     );
 
     return {
       id,
       email,
       passwordHash,
-      username,
+      username: name,
       createdAt: now,
     };
   }
@@ -35,12 +35,18 @@ export class UserModel {
    * 根据邮箱查找用户
    */
   static async findByEmail(email: string): Promise<UserAccount | null> {
-    const row = await queryOne<UserAccount & { passwordHash: string }>(
-      `SELECT id, email, password_hash as passwordHash, username, created_at as createdAt, last_login_at as lastLoginAt
+    const row = await queryOne<UserAccount & { passwordHash: string; name: string }>(
+      `SELECT id, email, password_hash as passwordHash, name, created_at as createdAt, last_login_at as lastLoginAt
        FROM users
        WHERE email = ?`,
       [email]
     );
+    if (row) {
+      return {
+        ...row,
+        username: row.name,
+      };
+    }
     return row;
   }
 
@@ -48,12 +54,18 @@ export class UserModel {
    * 根据ID查找用户
    */
   static async findById(id: string): Promise<UserAccount | null> {
-    const row = await queryOne<UserAccount & { passwordHash: string }>(
-      `SELECT id, email, password_hash as passwordHash, username, created_at as createdAt, last_login_at as lastLoginAt
+    const row = await queryOne<UserAccount & { passwordHash: string; name: string }>(
+      `SELECT id, email, password_hash as passwordHash, name, created_at as createdAt, last_login_at as lastLoginAt
        FROM users
        WHERE id = ?`,
       [id]
     );
+    if (row) {
+      return {
+        ...row,
+        username: row.name,
+      };
+    }
     return row;
   }
 
@@ -77,7 +89,7 @@ export class UserModel {
     const values: unknown[] = [];
 
     if (data.username !== undefined) {
-      fields.push('username = ?');
+      fields.push('name = ?');
       values.push(data.username);
     }
     if (data.email !== undefined) {
