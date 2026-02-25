@@ -3,8 +3,11 @@
  * 全局状态管理：用户数据、衣橱、日记等
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { ClothingItem, BodyProfile, DiaryEntry } from '../../types';
+
+// API 基础路径
+const API_BASE = import.meta.env.VITE_API_URL || 'http://10.98.108.49:3000';
 
 // ==================== Context 状态 ====================
 interface AppContextType {
@@ -47,10 +50,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     profile: BodyProfile;
     wardrobe: ClothingItem[];
     diary: DiaryEntry[];
+    savedOutfits: any[];
     isLoggedIn: boolean;
   } | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const dataLoadedRef = useRef(false);
 
   const DEFAULT_PROFILE: BodyProfile = {
     name: '默认用户',
@@ -65,7 +70,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const token = localStorage.getItem('lumina_token');
       if (token) {
         try {
-          const response = await fetch('/api/users/profile', {
+          const response = await fetch(`${API_BASE}/api/users/profile`, {
             headers: { 'Authorization': `Bearer ${token}` },
           });
           const data = await response.json();
@@ -95,14 +100,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       // 先注册再登录（兼容现有逻辑）
       if (username) {
-        await fetch('/api/auth/register', {
+        await fetch(`${API_BASE}/api/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, username }),
         });
       }
 
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -113,7 +118,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.success) {
         localStorage.setItem('lumina_token', data.data.token);
         
-        const profileResponse = await fetch('/api/users/profile', {
+        const profileResponse = await fetch(`${API_BASE}/api/users/profile`, {
           headers: { 'Authorization': `Bearer ${data.data.token}` },
         });
         const profileData = await profileResponse.json();
@@ -147,46 +152,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!token) return;
 
     try {
-      const [wardrobeRes, diaryRes] = await Promise.all([
+      const [wardrobeRes, diaryRes, outfitsRes] = await Promise.all([
         fetch(`/api/wardrobe?page=1&limit=100`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
         fetch(`/api/diary?page=1&limit=50`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
+        fetch(`/api/outfits`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
       ]);
 
-      const [wardrobeData, diaryData] = await Promise.all([
+      const [wardrobeData, diaryData, outfitsData] = await Promise.all([
         wardrobeRes.json(),
         diaryRes.json(),
+        outfitsRes.json(),
       ]);
 
-      if (user) {
-        setUser(prev => prev ? {
+      // 使用函数形式的 setState，确保获取到最新的 user 状态
+      setUser(prev => {
+        if (!prev) return null;
+        return {
           ...prev,
           wardrobe: wardrobeData.data || [],
           diary: diaryData.data || [],
-          savedOutfits: [],
-        } : null);
-      }
+          savedOutfits: outfitsData.data || [],
+        };
+      });
     } catch (error) {
       console.error('加载数据失败:', error);
     }
-  }, [user]);
+  }, []);
 
   // 初始登录后加载用户数据
   useEffect(() => {
-    if (user && user.isLoggedIn && user.wardrobe.length === 0) {
+    if (user && user.isLoggedIn && user.wardrobe.length === 0 && !dataLoadedRef.current) {
+      dataLoadedRef.current = true;
       loadUserData(user.id);
     }
-  }, [user, loadUserData]);
+  }, [user]);
 
   // ==================== 衣橱操作 ====================
   const addItem = useCallback(async (item: Partial<ClothingItem>) => {
     if (!user) return;
 
     const token = localStorage.getItem('lumina_token');
-    const response = await fetch('/api/wardrobe', {
+    const response = await fetch(`${API_BASE}/api/wardrobe`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -269,7 +281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
 
     const token = localStorage.getItem('lumina_token');
-    const response = await fetch('/api/users/profile', {
+    const response = await fetch(`${API_BASE}/api/users/profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -290,7 +302,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
 
     const token = localStorage.getItem('lumina_token');
-    const response = await fetch('/api/diary', {
+    const response = await fetch(`${API_BASE}/api/diary`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

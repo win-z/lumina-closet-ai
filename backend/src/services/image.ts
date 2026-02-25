@@ -102,6 +102,7 @@ export class VirtualTryOnService {
     profile: BodyProfile,
     top?: ClothingItem,
     bottom?: ClothingItem,
+    shoes?: ClothingItem,
     occasion: string = '日常',
     customPrompt?: string
   ): Promise<string> {
@@ -109,13 +110,14 @@ export class VirtualTryOnService {
       occasion, 
       hasTop: !!top, 
       hasBottom: !!bottom,
+      hasShoes: !!shoes,
       hasProfile: !!profile.photoFront,
       hasCustomPrompt: !!customPrompt
     });
 
     // 检查是否有足够的数据
     const hasProfilePhoto = profile.photoFront || profile.photoSide || profile.photoBack;
-    const hasClothing = top || bottom;
+    const hasClothing = top || bottom || shoes;
 
     if (!hasProfilePhoto && !hasClothing) {
       throw new Error('请先上传人物照片和选择服装');
@@ -127,7 +129,7 @@ export class VirtualTryOnService {
         profile, 
         top, 
         bottom, 
-        undefined, // shoes 暂时不用
+        shoes,
         occasion,
         customPrompt
       );

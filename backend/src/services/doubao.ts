@@ -12,6 +12,7 @@
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { BodyProfile, ClothingItem } from '../types';
+import { CosService } from './cos';
 
 interface DoubaoImageResponse {
   data: Array<{
@@ -29,6 +30,19 @@ export class DoubaoService {
     this.apiKey = config.doubao.apiKey;
     this.apiUrl = config.doubao.apiUrl;
     this.model = config.doubao.model;
+  }
+
+  /**
+   * 下载图片为Buffer
+   */
+  private async downloadImage(url: string): Promise<Buffer> {
+    logger.info('开始下载图片:', url);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`图片下载失败: ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
   }
 
   /**
@@ -127,8 +141,22 @@ export class DoubaoService {
       const data = await response.json() as DoubaoImageResponse;
       
       if (data.data && data.data[0]?.url) {
-        logger.info('虚拟试穿图片生成成功');
-        return data.data[0].url;
+        const tempImageUrl = data.data[0].url;
+        logger.info('虚拟试穿图片生成成功，开始上传到COS...');
+        
+        // 下载豆包返回的临时图片，然后上传到腾讯云COS
+        try {
+          const imageBuffer = await this.downloadImage(tempImageUrl);
+          const userId = profile.userId || 'unknown';
+          const base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+          const uploadResult = await CosService.uploadBase64Image(base64Image, userId, 'tryon');
+          logger.info('图片已上传到COS:', uploadResult.url);
+          return uploadResult.url;
+        } catch (uploadError) {
+          logger.error('上传到COS失败，返回临时URL:', uploadError);
+          // 如果上传失败，返回临时URL（但可能过期）
+          return tempImageUrl;
+        }
       } else {
         throw new Error('API 返回数据格式错误');
       }

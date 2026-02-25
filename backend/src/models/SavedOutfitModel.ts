@@ -172,6 +172,65 @@ export class SavedOutfitModel {
     const rows = await query<{ count: number }>('SELECT COUNT(*) as count FROM saved_outfits WHERE user_id = ?', [userId]);
     return rows[0]?.count || 0;
   }
+
+  /**
+   * 根据衣服组合查找已保存的搭配（用于复用试穿图）
+   * 匹配规则：有连衣裙时匹配dressId，否则匹配topId+bottomId+shoesId
+   */
+  static async findByClothing组合(
+    userId: string, 
+    options: { dressId?: string; topId?: string; bottomId?: string; shoesId?: string }
+  ): Promise<SavedOutfit | null> {
+    const { dressId, topId, bottomId, shoesId } = options;
+    
+    let queryStr = '';
+    const params: unknown[] = [userId];
+    
+    if (dressId) {
+      // 有连衣裙，匹配dressId
+      queryStr = `SELECT id, user_id as userId, name, tags, weather, occasion,
+              dress_id as dressId, top_id as topId, bottom_id as bottomId, shoes_id as shoesId,
+              reasoning, tryon_image as tryonImage, created_at as createdAt, updated_at as updatedAt
+       FROM saved_outfits
+       WHERE user_id = ? AND dress_id = ? AND tryon_image IS NOT NULL
+       ORDER BY created_at DESC
+       LIMIT 1`;
+      params.push(dressId);
+    } else if (topId || bottomId || shoesId) {
+      // 没有连衣裙，匹配topId+bottomId+shoesId（至少有一个）
+      // 构建动态查询，只匹配有值的字段
+      const conditions: string[] = ['user_id = ?'];
+      conditions.push('dress_id IS NULL'); // 确保没有连衣裙
+      
+      if (topId) {
+        conditions.push('top_id = ?');
+        params.push(topId);
+      }
+      if (bottomId) {
+        conditions.push('bottom_id = ?');
+        params.push(bottomId);
+      }
+      if (shoesId) {
+        conditions.push('shoes_id = ?');
+        params.push(shoesId);
+      }
+      
+      queryStr = `SELECT id, user_id as userId, name, tags, weather, occasion,
+              dress_id as dressId, top_id as topId, bottom_id as bottomId, shoes_id as shoesId,
+              reasoning, tryon_image as tryonImage, created_at as createdAt, updated_at as updatedAt
+       FROM saved_outfits
+       WHERE ${conditions.join(' AND ')} AND tryon_image IS NOT NULL
+       ORDER BY created_at DESC
+       LIMIT 1`;
+    } else {
+      return null;
+    }
+
+    const row = await queryOne<SavedOutfit & { tags: string }>(queryStr, params);
+    if (!row) return null;
+
+    return this.mapRowToSavedOutfit(row);
+  }
 }
 
 export default SavedOutfitModel;

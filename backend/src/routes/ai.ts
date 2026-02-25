@@ -9,13 +9,13 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { ClothingItemModel, BodyProfileModel } from '../models';
+import { ClothingItemModel, BodyProfileModel, SavedOutfitModel } from '../models';
 import { aiService } from '../services/ai';
 import { virtualTryOnService } from '../services/image';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 import { validate } from '../middleware/validation';
-import { ApiResponse } from '../types';
+import { ApiResponse, ClothingCategory } from '../types';
 import { z } from 'zod';
 
 const router = Router();
@@ -36,6 +36,7 @@ const outfitSchema = z.object({
 const tryOnSchema = z.object({
   topId: z.string().optional(),
   bottomId: z.string().optional(),
+  shoesId: z.string().optional(),
   occasion: z.string().default('日常'),
 });
 
@@ -105,21 +106,47 @@ const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiRespons
 
   let tryOnImage: string | undefined;
 
-  try {
-    if (top || bottom) {
-      // 使用豆包API生成虚拟试穿图，传入自定义提示词
-      logger.info('开始生成虚拟试穿图', { 
-        mode: isManualMode ? '手动选择' : 'AI推荐',
-        top: top?.name, 
-        bottom: bottom?.name,
-        hasProfilePhoto: !!profile.photoFront,
-        hasCustomPrompt: !!customPrompt
-      });
-      tryOnImage = await virtualTryOnService.generate(profile, top, bottom, occasion || '日常', customPrompt);
-      logger.info('虚拟试穿图生成完成');
+  // 检查是否选择了连衣裙（通过 category 判断）
+  const isDress = top && top.category === ClothingCategory.DRESS;
+  const dressId = isDress ? top?.id : undefined;
+
+  // 先检查是否有已保存的相同搭配（包含试穿图）
+  const existingOutfit = await SavedOutfitModel.findByClothing组合(userId, {
+    dressId: dressId,
+    topId: isDress ? undefined : suggestion.topId,
+    bottomId: suggestion.bottomId,
+    shoesId: suggestion.shoesId,
+  });
+
+  if (existingOutfit?.tryonImage) {
+    // 找到已保存的相同搭配，直接复用试穿图
+    logger.info('找到已保存的相同搭配，复用试穿图', { 
+      outfitId: existingOutfit.id,
+      dressId,
+      topId: suggestion.topId,
+      bottomId: suggestion.bottomId,
+      shoesId: suggestion.shoesId
+    });
+    tryOnImage = existingOutfit.tryonImage;
+  } else {
+    // 没有找到相同的搭配，生成新的试穿图
+    try {
+      if (top || bottom || shoes) {
+        // 使用豆包API生成虚拟试穿图，传入自定义提示词
+        logger.info('开始生成虚拟试穿图', { 
+          mode: isManualMode ? '手动选择' : 'AI推荐',
+          top: top?.name, 
+          bottom: bottom?.name,
+          shoes: shoes?.name,
+          hasProfilePhoto: !!profile.photoFront,
+          hasCustomPrompt: !!customPrompt
+        });
+        tryOnImage = await virtualTryOnService.generate(profile, top, bottom, shoes, occasion || '日常', customPrompt);
+        logger.info('虚拟试穿图生成完成');
+      }
+    } catch (error) {
+      logger.error('生成试穿效果图失败:', error);
     }
-  } catch (error) {
-    logger.error('生成试穿效果图失败:', error);
   }
 
   res.json({ success: true, message: '建议生成成功', data: { ...suggestion, items: { top, bottom, shoes }, tryOnImage } });
@@ -131,19 +158,20 @@ const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiRespons
  */
 const virtualTryOn = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
   const userId = req.user!.userId;
-  const { topId, bottomId, occasion } = req.body;
+  const { topId, bottomId, shoesId, occasion } = req.body;
 
   const profile = await BodyProfileModel.findByUserId(userId);
   if (!profile) throw Errors.badRequest('请先完善您的身体档案');
 
   const top = topId ? await ClothingItemModel.findById(topId, userId) || undefined : undefined;
   const bottom = bottomId ? await ClothingItemModel.findById(bottomId, userId) || undefined : undefined;
+  const shoes = shoesId ? await ClothingItemModel.findById(shoesId, userId) || undefined : undefined;
 
-  if ((topId && !top) || (bottomId && !bottom)) {
+  if ((topId && !top) || (bottomId && !bottom) || (shoesId && !shoes)) {
     throw Errors.notFound('单品不存在或无权访问');
   }
 
-  const resultImage = await virtualTryOnService.generate(profile, top, bottom, occasion);
+  const resultImage = await virtualTryOnService.generate(profile, top, bottom, shoes, occasion);
 
   res.json({ success: true, message: '虚拟试穿生成成功', data: { image: resultImage } });
 });

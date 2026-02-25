@@ -5,8 +5,9 @@
 
 import { ClothingItem, BodyProfile } from "../types";
 
-// 使用相对路径，通过Vite代理转发到后端
-const API_BASE = '';
+// 开发环境直连后端，生产环境使用相对路径
+// 手机测试时使用局域网IP，后端部署后改为环境变量
+const API_BASE = import.meta.env.VITE_API_URL || 'http://10.98.108.49:3000';
 
 interface ApiResult<T = unknown> {
   success: boolean;
