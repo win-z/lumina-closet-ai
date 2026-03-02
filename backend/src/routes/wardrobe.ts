@@ -60,7 +60,7 @@ const createItem = asyncHandler(async (req: Request, res: Response<ApiResponse<C
 
   // 上传图片到COS
   if (imageFront && imageFront.startsWith('data:')) {
-    const result = await CosService.uploadBase64Image(cleanBase64Prefix(imageFront), userId);
+    const result = await CosService.uploadBase64Image(cleanBase64Prefix(imageFront), userId, 'clothing');
     imageFront = result.url;
   }
 
@@ -119,7 +119,7 @@ const updateItem = asyncHandler(async (req: Request, res: Response<ApiResponse<C
   }
 
   if (updateData.imageFront && updateData.imageFront.startsWith('data:')) {
-    const result = await CosService.uploadBase64Image(cleanBase64Prefix(updateData.imageFront), userId);
+    const result = await CosService.uploadBase64Image(cleanBase64Prefix(updateData.imageFront), userId, 'clothing');
     updateData.imageFront = result.url;
   }
 

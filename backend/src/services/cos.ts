@@ -48,13 +48,32 @@ export class CosService {
   }
 
   /**
-   * 上传Base64图片到COS
+   * 根据分类获取目录名
    */
-  static async uploadBase64Image(base64Data: string, userId: string): Promise<UploadResult> {
+  private static getFolderByCategory(category: string): string {
+    const folderMap: Record<string, string> = {
+      'clothing': 'clothing',   // 衣服
+      'outfit': 'outfit',       // 穿搭
+      'profile': 'profile',     // 头像/全身照
+      'diary': 'diary',         // 日记
+      'tryon': 'tryon',         // 试穿
+    };
+    return folderMap[category] || 'other';
+  }
+
+  /**
+   * 上传Base64图片到COS
+   * 新目录结构: closet/{userId}/{category}/{timestamp}.{ext}
+   * category: clothing(衣服) | outfit(穿搭) | profile(头像) | diary(日记) | tryon(试穿)
+   */
+  static async uploadBase64Image(base64Data: string, userId: string, category: string = 'clothing'): Promise<UploadResult> {
     try {
       // 检测图片格式
       const { type, ext } = this.detectImageType(base64Data);
-      const filename = `closet/${userId}/${Date.now()}.${ext}`;
+      
+      // 新的目录结构
+      const folder = this.getFolderByCategory(category);
+      const filename = `closet/${userId}/${folder}/${Date.now()}.${ext}`;
 
       // 去除data URI前缀
       const cleanBase64 = base64Data.replace(/^data:image\/[a-zA-Z]+;base64,/, '');

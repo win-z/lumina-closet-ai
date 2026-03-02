@@ -9,8 +9,8 @@ import { useWardrobe } from '../src/hooks/useWardrobe';
 import { useToast } from '../src/context/ToastContext';
 import { diaryApi, outfitsApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
-import { 
-  ChevronLeft, ChevronRight, Calendar, CloudSun, Smile, 
+import {
+  ChevronLeft, ChevronRight, Calendar, CloudSun, Smile,
   Plus, X, BookmarkPlus, Trash2, Camera, Sparkles,
   Sun, Cloud, CloudRain, Wind, Snowflake
 } from 'lucide-react';
@@ -75,18 +75,18 @@ const Diary: React.FC = () => {
   // ==================== State ====================
   const { items: wardrobe, getById } = useWardrobe();
   const { showSuccess, showError, showConfirm } = useToast();
-  
+
   // 日历状态
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarDates, setCalendarDates] = useState<CalendarDate[]>([]);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
-  
+
   // 弹窗状态
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentDiary, setCurrentDiary] = useState<DiaryData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  
+
   // 表单状态
   const [formData, setFormData] = useState<Partial<DiaryData>>({
     weather: '晴天',
@@ -94,12 +94,12 @@ const Diary: React.FC = () => {
     notes: '',
     clothingIds: [],
   });
-  
+
   // 已保存搭配
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
   const [showOutfitSelector, setShowOutfitSelector] = useState(false);
   const [loadingOutfits, setLoadingOutfits] = useState(false);
-  
+
   // ==================== 工具函数 ====================
   const formatDate = (date: Date) => {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -120,13 +120,13 @@ const Diary: React.FC = () => {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth() + 1;
       const data = await diaryApi.getCalendar(year, month);
-      
+
       const dateMap = new Map(data.dates.map(d => [d.date, d]));
-      
+
       // 构建完整的日历数据
       const daysInMonth = getDaysInMonth(year, month - 1);
       const dates: CalendarDate[] = [];
-      
+
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const entry = dateMap.get(dateStr);
@@ -138,7 +138,7 @@ const Diary: React.FC = () => {
           mood: entry?.mood,
         });
       }
-      
+
       setCalendarDates(dates);
     } catch (error) {
       console.error('加载日历数据失败:', error);
@@ -159,9 +159,10 @@ const Diary: React.FC = () => {
     }
   };
 
-  useEffect(() => {
+  // 组件挂载时加载日历数据
+  React.useEffect(() => {
     loadCalendarData();
-  }, [loadCalendarData]);
+  }, []);
 
   // 监听弹窗关闭，刷新日历数据
   useEffect(() => {
@@ -175,11 +176,11 @@ const Diary: React.FC = () => {
     setSelectedDate(dateStr);
     setIsModalOpen(true);
     setShowOutfitSelector(false);
-    
+
     try {
       // 获取该日期的日记
       const diary = await diaryApi.getByDate(dateStr);
-      
+
       if (diary) {
         setCurrentDiary(diary);
         setFormData({
@@ -208,7 +209,7 @@ const Diary: React.FC = () => {
 
   const handleSaveDiary = async () => {
     if (!selectedDate) return;
-    
+
     try {
       await diaryApi.upsert({
         date: selectedDate,
@@ -219,13 +220,13 @@ const Diary: React.FC = () => {
         photo: formData.photo,
         outfitId: formData.outfitId,
       });
-      
+
       showSuccess('日记保存成功');
       setIsEditing(false);
-      
+
       // 强制刷新日历数据
       await loadCalendarData();
-      
+
       // 刷新当前日记数据
       const updated = await diaryApi.getByDate(selectedDate);
       if (updated) {
@@ -239,7 +240,7 @@ const Diary: React.FC = () => {
 
   const handleDeleteDiary = async () => {
     if (!currentDiary?.id) return;
-    
+
     const confirmed = await showConfirm({
       title: '删除日记',
       message: '确定要删除这条日记吗？删除后无法恢复。',
@@ -247,9 +248,9 @@ const Diary: React.FC = () => {
       cancelText: '取消',
       type: 'danger',
     });
-    
+
     if (!confirmed) return;
-    
+
     try {
       await diaryApi.delete(currentDiary.id);
       showSuccess('日记已删除');
@@ -267,14 +268,14 @@ const Diary: React.FC = () => {
     if (outfit.topId) clothingIds.push(outfit.topId);
     if (outfit.bottomId) clothingIds.push(outfit.bottomId);
     if (outfit.shoesId) clothingIds.push(outfit.shoesId);
-    
+
     setFormData(prev => ({
       ...prev,
       clothingIds,
       outfitId: outfit.id,
       photo: outfit.tryonImage || prev.photo,
     }));
-    
+
     setShowOutfitSelector(false);
     showSuccess('已导入搭配');
   };
@@ -282,7 +283,7 @@ const Diary: React.FC = () => {
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
     reader.onload = (event) => {
       setFormData(prev => ({ ...prev, photo: event.target?.result as string }));
@@ -297,20 +298,20 @@ const Diary: React.FC = () => {
     const daysInMonth = getDaysInMonth(year, month);
     const firstDay = getFirstDayOfMonth(year, month);
     const today = formatDate(new Date());
-    
+
     const days = [];
-    
+
     // 空白占位（上个月）
     for (let i = 0; i < firstDay; i++) {
       days.push(<div key={`empty-${i}`} className="h-14 md:h-20" />);
     }
-    
+
     // 日期格子
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const calendarDate = calendarDates.find(d => d.date === dateStr);
       const isToday = dateStr === today;
-      
+
       days.push(
         <button
           key={dateStr}
@@ -318,8 +319,8 @@ const Diary: React.FC = () => {
           className={`
             relative h-14 md:h-20 rounded-xl border-2 transition-all duration-200
             flex flex-col items-center justify-start pt-1
-            ${isToday 
-              ? 'border-indigo-500 bg-indigo-50' 
+            ${isToday
+              ? 'border-indigo-500 bg-indigo-50'
               : 'border-transparent hover:border-slate-200 hover:bg-slate-50'
             }
             ${calendarDate?.hasEntry ? 'bg-white shadow-sm' : ''}
@@ -332,7 +333,7 @@ const Diary: React.FC = () => {
           `}>
             {day}
           </span>
-          
+
           {/* 标记指示器 */}
           <div className="flex gap-0.5 mt-1">
             {calendarDate?.hasPhoto && (
@@ -345,7 +346,7 @@ const Diary: React.FC = () => {
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             )}
           </div>
-          
+
           {/* 心情表情 */}
           {calendarDate?.mood && (
             <span className="text-xs mt-0.5">
@@ -355,7 +356,7 @@ const Diary: React.FC = () => {
         </button>
       );
     }
-    
+
     return days;
   };
 
@@ -380,7 +381,7 @@ const Diary: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <button
               onClick={() => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-              className="p-2 hover:bg-white/20 rounded-full transition-colors"
+              className="p-3 -ml-2 hover:bg-white/20 rounded-full transition-colors active:scale-95"
             >
               <ChevronLeft size={24} />
             </button>
@@ -389,12 +390,12 @@ const Diary: React.FC = () => {
             </span>
             <button
               onClick={() => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-              className="p-2 hover:bg-white/20 rounded-full transition-colors"
+              className="p-3 -mr-2 hover:bg-white/20 rounded-full transition-colors active:scale-95"
             >
               <ChevronRight size={24} />
             </button>
           </div>
-          
+
           {/* 星期标题 */}
           <div className="grid grid-cols-7 gap-1">
             {weekDays.map(day => (
@@ -404,7 +405,7 @@ const Diary: React.FC = () => {
             ))}
           </div>
         </div>
-        
+
         {/* 日历格子 */}
         <div className="p-4">
           {loadingCalendar ? (
@@ -417,7 +418,7 @@ const Diary: React.FC = () => {
             </div>
           )}
         </div>
-        
+
         {/* 图例 */}
         <div className="px-4 pb-4 flex items-center justify-center gap-4 text-xs text-slate-500">
           <div className="flex items-center gap-1">
@@ -438,9 +439,9 @@ const Diary: React.FC = () => {
       {/* 日记弹窗 */}
       {isModalOpen && selectedDate && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-          <div 
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
-            onClick={() => setIsModalOpen(false)} 
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setIsModalOpen(false)}
           />
           <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[80vh] flex flex-col">
             {/* 弹窗头部 */}
@@ -503,8 +504,8 @@ const Diary: React.FC = () => {
                             onClick={() => setFormData(prev => ({ ...prev, weather: option.value }))}
                             className={`
                               flex items-center gap-1 px-3 py-2 rounded-xl text-sm transition-all
-                              ${isSelected 
-                                ? `${option.bg} ${option.color} ring-2 ring-offset-1 ring-indigo-300` 
+                              ${isSelected
+                                ? `${option.bg} ${option.color} ring-2 ring-offset-1 ring-indigo-300`
                                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                               }
                             `}
@@ -532,8 +533,8 @@ const Diary: React.FC = () => {
                             onClick={() => setFormData(prev => ({ ...prev, mood: option.value }))}
                             className={`
                               flex items-center gap-1 px-3 py-2 rounded-xl text-sm transition-all
-                              ${isSelected 
-                                ? `${option.color} ring-2 ring-offset-1 ring-indigo-300` 
+                              ${isSelected
+                                ? `${option.color} ring-2 ring-offset-1 ring-indigo-300`
                                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                               }
                             `}
@@ -562,7 +563,7 @@ const Diary: React.FC = () => {
                       <Plus size={20} />
                       {formData.outfitId ? '更换搭配' : '选择已保存搭配'}
                     </button>
-                    
+
                     {formData.outfitId && (
                       <p className="text-xs text-slate-500 mt-1">
                         已选择搭配
@@ -735,9 +736,9 @@ const Diary: React.FC = () => {
       {/* 搭配选择器弹窗 */}
       {showOutfitSelector && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
-          <div 
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
-            onClick={() => setShowOutfitSelector(false)} 
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowOutfitSelector(false)}
           />
           <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
@@ -749,7 +750,7 @@ const Diary: React.FC = () => {
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-4">
               {loadingOutfits ? (
                 <div className="flex items-center justify-center py-12">

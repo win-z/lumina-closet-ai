@@ -11,7 +11,7 @@ import { useApp } from '../src/context/AppContext';
 import { useToast } from '../src/context/ToastContext';
 import { aiApi, outfitsApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
-import { Sparkles, CloudSun, Calendar, RefreshCw, BookmarkPlus, Trash2, Edit, Plus, X, Camera, Upload } from 'lucide-react';
+import { Sparkles, CloudSun, Calendar, RefreshCw, BookmarkPlus, Trash2, Edit, Plus, X, Camera, Upload, Bookmark } from 'lucide-react';
 import { ClothingCategory } from '../types';
 
 const Stylist: React.FC = () => {
@@ -27,6 +27,7 @@ const Stylist: React.FC = () => {
   const [customPrompt, setCustomPrompt] = useState(''); // AI推荐自定义输入
   const [suggestion, setSuggestion] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [outfitsLoading, setOutfitsLoading] = useState(true);
   const [savedOutfits, setSavedOutfits] = useState<any[]>([]);
   const [editingOutfit, setEditingOutfit] = useState<any>(null);
   const [customName, setCustomName] = useState('');
@@ -48,12 +49,15 @@ const Stylist: React.FC = () => {
     console.log('loadSavedOutfits 被调用');
     try {
       setError(null);
+      setOutfitsLoading(true);
       const outfits = await outfitsApi.getAll();
       console.log('获取到搭配数量:', outfits?.length || 0);
       setSavedOutfits(outfits || []);
     } catch (e: any) {
       console.error('加载已保存搭配失败:', e);
       setError(e?.message || '加载失败，请重新登录');
+    } finally {
+      setOutfitsLoading(false);
     }
   };
 
@@ -139,7 +143,7 @@ const Stylist: React.FC = () => {
     // 验证：有连衣裙，或者有上装+下装
     const hasDress = selectedDress !== null;
     const hasTopAndBottom = selectedTops.length > 0 || selectedBottoms.length > 0;
-    
+
     if (!hasDress && !hasTopAndBottom) {
       showError("请选择连衣裙，或者选择上装/下装！");
       return;
@@ -157,7 +161,7 @@ const Stylist: React.FC = () => {
       });
       return;
     }
-    
+
     if (!profile?.photoFront) {
       showError("请先上传身体档案照片，或上传真实穿着照片！");
       return;
@@ -168,10 +172,10 @@ const Stylist: React.FC = () => {
       // 传递手动选择的服装ID
       // 如果有连衣裙，优先使用连衣裙；否则使用上装+下装
       const result = await aiApi.outfit(
-        weather, 
-        occasion, 
-        selectedDress || selectedTops[0], 
-        selectedDress ? undefined : selectedBottoms[0], 
+        weather,
+        occasion,
+        selectedDress || selectedTops[0],
+        selectedDress ? undefined : selectedBottoms[0],
         selectedShoes[0]
       );
       setSuggestion(result);
@@ -193,7 +197,7 @@ const Stylist: React.FC = () => {
       const topId = !dressId ? (suggestion.topIds ? suggestion.topIds[0] : suggestion.topId) : undefined;
       const bottomId = !dressId ? (suggestion.bottomIds ? suggestion.bottomIds[0] : suggestion.bottomId) : undefined;
       const shoesId = suggestion.shoesIds ? suggestion.shoesIds[0] : suggestion.shoesId;
-      
+
       await outfitsApi.save({
         name: customName || undefined,
         tags: customTags,
@@ -245,9 +249,9 @@ const Stylist: React.FC = () => {
       cancelText: '取消',
       type: 'danger',
     });
-    
+
     if (!confirmed) return;
-    
+
     try {
       await outfitsApi.delete(id);
       showSuccess("搭配已删除！");
@@ -262,7 +266,7 @@ const Stylist: React.FC = () => {
     if (!editingOutfit) return;
 
     try {
-      await outfitsApi.save({
+      await outfitsApi.update(editingOutfit.id, {
         name: customName || undefined,
         tags: customTags,
         weather: editingOutfit.weather,
@@ -302,8 +306,8 @@ const Stylist: React.FC = () => {
   const bottoms = wardrobe.filter(item => item.category === ClothingCategory.BOTTOM || item.category === '下装');
   const dresses = wardrobe.filter(item => item.category === ClothingCategory.DRESS || item.category === '连衣裙');
   const shoes = wardrobe.filter(item => item.category === ClothingCategory.SHOES || item.category === '鞋履');
-  const accessories = wardrobe.filter(item => 
-    item.category === ClothingCategory.ACCESSORY || 
+  const accessories = wardrobe.filter(item =>
+    item.category === ClothingCategory.ACCESSORY ||
     item.category === '配饰' ||
     item.category === ClothingCategory.OUTERWEAR ||
     item.category === '外套'
@@ -323,11 +327,10 @@ const Stylist: React.FC = () => {
             setActiveTab('generate');
             setEditingOutfit(null);
           }}
-          className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'generate'
-              ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
-              : 'bg-white text-slate-600 hover:bg-slate-50'
-          }`}
+          className={`flex-1 py-3.5 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'generate'
+            ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
+            : 'bg-white text-slate-600 hover:bg-slate-50'
+            }`}
         >
           <Sparkles size={16} />
           <span>生成搭配</span>
@@ -337,14 +340,13 @@ const Stylist: React.FC = () => {
             setActiveTab('saved');
             setSuggestion(null);
           }}
-          className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'saved'
-              ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
-              : 'bg-white text-slate-600 hover:bg-slate-50'
-          }`}
+          className={`flex-1 py-3.5 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'saved'
+            ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
+            : 'bg-white text-slate-600 hover:bg-slate-50'
+            }`}
         >
-          <BookmarkPlus size={16} />
-          <span>已保存搭配 ({savedOutfits.length})</span>
+          <Bookmark size={16} />
+          <span>已保存搭配 ({outfitsLoading ? '…' : savedOutfits.length})</span>
         </button>
       </div>
 
@@ -358,11 +360,10 @@ const Stylist: React.FC = () => {
                 setManualMode(false);
                 setSuggestion(null);
               }}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
-                !manualMode
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${!manualMode
+                ? 'bg-indigo-500 text-white shadow-md'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
             >
               🤖 AI推荐
             </button>
@@ -371,11 +372,10 @@ const Stylist: React.FC = () => {
                 setManualMode(true);
                 setSuggestion(null);
               }}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
-                manualMode
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${manualMode
+                ? 'bg-indigo-500 text-white shadow-md'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
             >
               ✋ 手动选择
             </button>
@@ -617,7 +617,7 @@ const Stylist: React.FC = () => {
                     <Upload size={14} className="inline mr-1" />
                     上传真实穿着照片（可选）
                   </label>
-                  
+
                   {realPhoto ? (
                     <div className="relative aspect-[9/16] rounded-xl overflow-hidden bg-slate-100">
                       <ImageRenderer
@@ -816,7 +816,7 @@ const Stylist: React.FC = () => {
                     )}
                   </>
                 )}
-                
+
                 {/* 下装 - 支持单选或多选 */}
                 {(suggestion.bottomId || suggestion.bottomIds?.length > 0) && (
                   <>
@@ -849,7 +849,7 @@ const Stylist: React.FC = () => {
                     )}
                   </>
                 )}
-                
+
                 {/* 鞋履 - 支持单选或多选 */}
                 {(suggestion.shoesId || suggestion.shoesIds?.length > 0) && (
                   <>
@@ -954,7 +954,7 @@ const Stylist: React.FC = () => {
                       >
                         <Trash2 size={12} />
                       </button>
-                      
+
                       {/* 试穿效果图 */}
                       {outfit.tryonImage ? (
                         <ImageRenderer
@@ -975,19 +975,19 @@ const Stylist: React.FC = () => {
               </div>
             ))
           )}
-          
+
           {/* 编辑搭配弹窗 */}
           {editingOutfit && (
-            <div className="fixed inset-0 z-[200] flex items-start justify-center">
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
               {/* 遮罩背景 */}
               <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {
                 setEditingOutfit(null);
                 setCustomName('');
                 setCustomTags([]);
               }} />
-              {/* 弹窗内容 - 严格限制在上下菜单之间 */}
-              <div className="relative w-full max-w-[calc(393px-32px)] mx-4 mt-[72px] mb-[88px] max-h-[calc(852px-160px)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              {/* 弹窗内容 */}
+              <div className="relative w-full max-w-sm max-h-[80vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between p-4 border-b border-slate-100 shrink-0">
                   <h3 className="text-lg font-semibold text-slate-800">编辑搭配</h3>
                   <button
                     onClick={() => {
@@ -1043,7 +1043,7 @@ const Stylist: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  
+
                   {/* 显示搭配详情 */}
                   {editingOutfit.tryonImage && (
                     <div className="aspect-[9/16] rounded-xl overflow-hidden bg-slate-100">
@@ -1055,7 +1055,7 @@ const Stylist: React.FC = () => {
                       />
                     </div>
                   )}
-                  
+
                   {/* 单品列表 */}
                   <div className="flex gap-2 overflow-x-auto pb-2">
                     {editingOutfit.topId && getById(editingOutfit.topId) && (
@@ -1098,14 +1098,17 @@ const Stylist: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   {editingOutfit.reasoning && (
                     <div className="bg-slate-50 rounded-xl p-3">
                       <p className="text-xs text-slate-600">{editingOutfit.reasoning}</p>
                     </div>
                   )}
-                  
-                  <div className="flex gap-2 pt-2">
+                </div>
+
+                {/* 底部按钮区域 - 固定在底部不随内容滚动 */}
+                <div className="p-4 border-t border-slate-100 shrink-0 bg-white">
+                  <div className="flex gap-2">
                     <button
                       onClick={handleSaveEditedOutfit}
                       className="flex-1 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all"

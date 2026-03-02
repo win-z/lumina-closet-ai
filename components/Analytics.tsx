@@ -33,23 +33,39 @@ const Analytics: React.FC = () => {
   const { items: wardrobe } = useWardrobe();
   const { showError, showSuccess } = useToast();
   const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
+  const [isCached, setIsCached] = useState(false);
   const [brandStats, setBrandStats] = useState<any>(null);
   const [priceStats, setPriceStats] = useState<any>(null);
   const [wearStats, setWearStats] = useState<any>(null);
   const [diaryStats, setDiaryStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'brand' | 'price' | 'wear' | 'diary'>('overview');
 
-  // 加载保存的分析结果
-  const loadSavedAnalysis = async () => {
+  // 优先读取带缓存的 summary，失败则降级到 latest
+  const loadSummary = async () => {
     try {
-      const data = await analyticsApi.getLatest();
+      const data = await analyticsApi.getSummary() as any;
       if (data) {
-        setAnalysis(data);
+        setIsCached(!!data._cached);
+        setAnalysis(prev => ({
+          id: '',
+          categoryStats: data.categoryStats || {},
+          colorStats: data.colorStats || {},
+          brandStats: data.brandStats || {},
+          priceStats: { totalValue: data.totalValue || 0, averagePrice: 0, maxPrice: 0, minPrice: 0 },
+          wearStats: [],
+          aiAnalysis: prev?.aiAnalysis,
+          createdAt: data._cachedAt || new Date().toISOString(),
+        }));
       }
-    } catch (err) {
-      console.error('分析失败:', err);
-      showError('分析失败，请重试');
+    } catch {
+      try {
+        const data = await analyticsApi.getLatest();
+        if (data) setAnalysis(data);
+      } catch {
+        console.error('分析数据加载失败');
+      }
     }
   };
 
@@ -88,12 +104,12 @@ const Analytics: React.FC = () => {
     try {
       const now = new Date();
       const stats = await diaryApi.getMonthlyStats(now.getFullYear(), now.getMonth() + 1);
-      
+
       // 获取今年的所有日记
       const yearStart = `${now.getFullYear()}-01-01`;
       const yearEnd = `${now.getFullYear()}-12-31`;
       const allDiaries = await diaryApi.getAll(1, 1000, yearStart, yearEnd);
-      
+
       setDiaryStats({
         ...stats,
         totalThisYear: allDiaries?.length || 0,
@@ -103,22 +119,49 @@ const Analytics: React.FC = () => {
     }
   };
 
-  // 执行完整分析
-  const performAnalysis = async () => {
+  // 刷新统计（快速，调用缓存接口）
+  const refreshStats = async () => {
     setLoading(true);
     try {
-      const result = await aiApi.analyze();
-      showSuccess('分析完成');
-      await loadSavedAnalysis();
-    } catch (err) {
-      showError('分析失败，请重试');
+      const data = await analyticsApi.refresh() as any;
+      setIsCached(false);
+      setAnalysis(prev => ({
+        id: '',
+        categoryStats: data.categoryStats || {},
+        colorStats: data.colorStats || {},
+        brandStats: {},
+        priceStats: { totalValue: data.totalValue || 0, averagePrice: 0, maxPrice: 0, minPrice: 0 },
+        wearStats: [],
+        aiAnalysis: prev?.aiAnalysis,
+        createdAt: new Date().toISOString(),
+      }));
+      showSuccess('统计已刷新');
+    } catch {
+      showError('刷新失败，请重试');
     } finally {
       setLoading(false);
     }
   };
 
+  // AI 深度分析（较慢）
+  const performAiAnalysis = async () => {
+    setAiLoading(true);
+    try {
+      await aiApi.analyze();
+      showSuccess('AI 分析完成');
+      const latest = await analyticsApi.getLatest();
+      if (latest?.aiAnalysis) {
+        setAnalysis(prev => prev ? { ...prev, aiAnalysis: latest.aiAnalysis } : null);
+      }
+    } catch {
+      showError('AI 分析失败，请重试');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   useEffect(() => {
-    loadSavedAnalysis();
+    loadSummary();
     loadBrandStats();
     loadPriceStats();
     loadWearStats();
@@ -151,25 +194,32 @@ const Analytics: React.FC = () => {
           <h2 className="text-2xl font-bold font-serif text-slate-800">衣橱分析</h2>
           <span className="bg-purple-100 text-purple-600 px-2 py-0.5 rounded text-xs font-bold uppercase">Stats</span>
         </div>
-        <button
-          onClick={performAnalysis}
-          disabled={loading || wardrobe.length === 0}
-          className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 text-white rounded-lg text-sm hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? (
-            <RefreshCw size={14} className="animate-spin" />
-          ) : (
-            <RefreshCw size={14} />
-          )}
-          重新分析
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={refreshStats}
+            disabled={loading || wardrobe.length === 0}
+            className="flex items-center gap-1 px-3 py-1.5 bg-slate-500 text-white rounded-lg text-sm hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? <RefreshCw size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            刷新
+          </button>
+          <button
+            onClick={performAiAnalysis}
+            disabled={aiLoading || wardrobe.length === 0}
+            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 text-white rounded-lg text-sm hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {aiLoading ? <BrainCircuit size={14} className="animate-pulse" /> : <BrainCircuit size={14} />}
+            AI 分析
+          </button>
+        </div>
       </div>
 
-      {/* 上次分析时间 */}
+      {/* 上次更新时间 */}
       {analysis?.createdAt && (
         <div className="flex items-center gap-2 text-sm text-slate-500">
           <Calendar size={14} />
-          <span>上次分析: {formatDate(analysis.createdAt)}</span>
+          <span>上次更新: {formatDate(analysis.createdAt)}</span>
+          {isCached && <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded">缓存</span>}
         </div>
       )}
 
@@ -192,11 +242,10 @@ const Analytics: React.FC = () => {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key as any)}
-                className={`flex items-center gap-1 px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${
-                  activeTab === tab.key
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
-                    : 'bg-white text-slate-600 hover:bg-slate-50'
-                }`}
+                className={`flex items-center gap-1 px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${activeTab === tab.key
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
               >
                 <tab.icon size={14} />
                 {tab.label}
@@ -208,22 +257,22 @@ const Analytics: React.FC = () => {
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* 基础统计 */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
-                  <div className="text-2xl font-bold text-indigo-500">{wardrobe.length}</div>
-                  <div className="text-xs text-slate-500 mt-1">总单品数</div>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm text-center">
+                  <div className="text-xl sm:text-2xl font-bold text-indigo-500">{wardrobe.length}</div>
+                  <div className="text-[10px] sm:text-xs text-slate-500 mt-1">总单品数</div>
                 </div>
-                <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
-                  <div className="text-2xl font-bold text-purple-500">
+                <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm text-center">
+                  <div className="text-xl sm:text-2xl font-bold text-purple-500">
                     {Object.keys(analysis?.categoryStats || {}).length}
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">品类数</div>
+                  <div className="text-[10px] sm:text-xs text-slate-500 mt-1">品类数</div>
                 </div>
-                <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
-                  <div className="text-2xl font-bold text-emerald-500">
+                <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm text-center">
+                  <div className="text-xl sm:text-2xl font-bold text-emerald-500">
                     {Object.keys(analysis?.colorStats || {}).length}
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">颜色数</div>
+                  <div className="text-[10px] sm:text-xs text-slate-500 mt-1">颜色数</div>
                 </div>
               </div>
 
@@ -256,8 +305,8 @@ const Analytics: React.FC = () => {
                   <div className="flex flex-wrap justify-center gap-3 mt-4">
                     {categoryData.map((entry, index) => (
                       <div key={entry.name} className="flex items-center gap-1 text-sm">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
+                        <div
+                          className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         />
                         <span className="text-slate-600">{entry.name}</span>
@@ -349,25 +398,25 @@ const Analytics: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
                   <div className="text-xl font-bold text-emerald-500">
-                    ¥{priceStats.totalValue.toLocaleString()}
+                    ¥{(priceStats.totalValue ?? 0).toLocaleString()}
                   </div>
                   <div className="text-xs text-slate-500 mt-1">总价值</div>
                 </div>
                 <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
                   <div className="text-xl font-bold text-blue-500">
-                    ¥{priceStats.averagePrice.toLocaleString()}
+                    ¥{(priceStats.averagePrice ?? 0).toLocaleString()}
                   </div>
                   <div className="text-xs text-slate-500 mt-1">平均单价</div>
                 </div>
                 <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
                   <div className="text-xl font-bold text-rose-500">
-                    ¥{priceStats.maxPrice.toLocaleString()}
+                    ¥{(priceStats.maxPrice ?? 0).toLocaleString()}
                   </div>
                   <div className="text-xs text-slate-500 mt-1">最贵单品</div>
                 </div>
                 <div className="bg-white p-4 rounded-2xl shadow-sm text-center">
                   <div className="text-xl font-bold text-amber-500">
-                    {priceStats.itemsWithPrice}/{priceStats.totalItems}
+                    {priceStats.itemsWithPrice ?? 0}/{priceStats.totalItems ?? 0}
                   </div>
                   <div className="text-xs text-slate-500 mt-1">已标价/总数</div>
                 </div>
@@ -383,10 +432,10 @@ const Analytics: React.FC = () => {
                     <div key={range} className="flex items-center gap-3">
                       <span className="text-sm text-slate-600 w-20">{range}</span>
                       <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
-                        <div 
+                        <div
                           className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all"
-                          style={{ 
-                            width: `${priceStats.itemsWithPrice > 0 ? (count as number) / priceStats.itemsWithPrice * 100 : 0}%` 
+                          style={{
+                            width: `${(priceStats.itemsWithPrice ?? 0) > 0 ? ((count as number) ?? 0) / priceStats.itemsWithPrice * 100 : 0}%`
                           }}
                         />
                       </div>
@@ -512,14 +561,14 @@ const Analytics: React.FC = () => {
                   <p>
                     <span className="font-medium">记录习惯：</span>
                     本月已记录 {diaryStats.totalEntries} 天穿搭
-                    {diaryStats.totalEntries > 20 ? '，非常棒的习惯！' : 
-                     diaryStats.totalEntries > 10 ? '，继续保持！' : '，还有提升空间~'}
+                    {diaryStats.totalEntries > 20 ? '，非常棒的习惯！' :
+                      diaryStats.totalEntries > 10 ? '，继续保持！' : '，还有提升空间~'}
                   </p>
                   <p>
                     <span className="font-medium">搭配多样性：</span>
                     使用了 {diaryStats.uniqueOutfits} 种不同搭配
-                    {diaryStats.uniqueOutfits > 15 ? '，你的穿搭很有创意！' : 
-                     diaryStats.uniqueOutfits > 8 ? '，搭配很丰富！' : ''}
+                    {diaryStats.uniqueOutfits > 15 ? '，你的穿搭很有创意！' :
+                      diaryStats.uniqueOutfits > 8 ? '，搭配很丰富！' : ''}
                   </p>
                   {diaryStats.avgMood && (
                     <p>

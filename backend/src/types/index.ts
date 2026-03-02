@@ -198,6 +198,7 @@ export interface AutoTagResult {
   name: string;
   color: string;
   category: ClothingCategory;
+  brand?: string;  // 品牌（可选）
   tags: string[];
 }
 

@@ -17,10 +17,10 @@ export class ClothingItemModel {
 
     await execute(
       `INSERT INTO clothing_items (
-         id, user_id, image_front, category, name, colors,
-         brand, purchase_price, purchase_date, ai_tags, last_worn_date, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, userId, data.imageFront || null, data.category, data.name, data.color, data.brand || null, data.price || null, data.purchaseDate || null, JSON.stringify(data.tags), data.lastWorn || null, now, now]
+          id, user_id, image_front, category, name, colors,
+          brand, purchase_price, purchase_date, ai_tags, seasons, occasions, last_worn_date, wear_count, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, userId, data.imageFront || null, data.category, data.name, data.color, data.brand || null, data.price || null, data.purchaseDate || null, JSON.stringify(data.tags || []), JSON.stringify([]), JSON.stringify([]), data.lastWorn || null, 0, now, now]
     );
 
     return {
@@ -51,6 +51,7 @@ export class ClothingItemModel {
     if (!row) return null;
 
     row.tags = typeof row.tags === 'string' ? JSON.parse(row.tags || '[]') : (row.tags || []);
+    row.price = row.price != null ? Number(row.price) : undefined;
     return row;
   }
 
@@ -90,6 +91,7 @@ export class ClothingItemModel {
     return rows.map(row => ({
       ...row,
       tags: typeof row.tags === 'string' ? JSON.parse(row.tags || '[]') : (row.tags || []),
+      price: row.price != null ? Number(row.price) : undefined,
     }));
   }
 
@@ -112,6 +114,7 @@ export class ClothingItemModel {
     return rows.map(row => ({
       ...row,
       tags: typeof row.tags === 'string' ? JSON.parse(row.tags || '[]') : (row.tags || []),
+      price: row.price != null ? Number(row.price) : undefined,
     }));
   }
 
@@ -139,6 +142,10 @@ export class ClothingItemModel {
           snakeCase = 'colors';
         } else if (snakeCase === 'tags') {
           snakeCase = 'ai_tags';
+        } else if (snakeCase === 'price') {
+          snakeCase = 'purchase_price';
+        } else if (snakeCase === 'last_worn') {
+          snakeCase = 'last_worn_date';
         }
         fields.push(`${snakeCase} = ?`);
         values.push(field === 'tags' ? JSON.stringify(data[field]) : data[field]);

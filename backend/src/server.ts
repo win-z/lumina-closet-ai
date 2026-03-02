@@ -52,7 +52,6 @@ import outfitsRoutes from './routes/outfits';
 import analyticsRoutes from './routes/analytics';
 import aiRoutes from './routes/ai';
 import healthRoutes from './routes/health';
-import clothingRecordsRoutes from './routes/clothingRecords';
 
 
 // ==================== 创建Express应用 ====================
@@ -104,6 +103,23 @@ if (config.nodeEnv === 'production') {
   logger.info('⚠️  开发环境：速率限制已禁用');
 }
 
+// ==================== AI 接口独立限流 (所有环境) ====================
+// AI 调用成本高，单独收紧：20次/15分钟/IP
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: {
+    success: false,
+    message: 'AI 请求过于频繁，请稍后再试',
+    error: { code: 'AI_RATE_LIMIT_EXCEEDED' }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/ai', aiLimiter);
+logger.info('✅ AI 接口独立限流已启用 (20次/15分钟)');
+
+
 // ==================== 公开路由 (无需认证) ====================
 
 // API根路径
@@ -135,8 +151,6 @@ app.use('/api/outfits', outfitsRoutes);
 // 数据分析
 app.use('/api/analytics', analyticsRoutes);
 
-// 穿着记录
-app.use('/api/clothing-records', clothingRecordsRoutes);
 
 // AI功能
 app.use('/api/ai', aiRoutes);
@@ -158,7 +172,7 @@ const db = getDatabaseAdapter(); // 触发表创建
 const startServer = async () => {
   // 初始化数据库表
   await initDatabase();
-  
+
   // 启动服务
   app.listen(PORT, () => {
     logger.info(`🚀 Lumina Closet AI 后端服务已启动`);

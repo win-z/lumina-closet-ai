@@ -3,7 +3,7 @@
  * 使用 AppProvider 和 Context 管理全局状态
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewState } from './types';
 import WardrobeGallery from './components/WardrobeGallery';
 import BodyProfileComponent from './components/BodyProfile';
@@ -30,7 +30,43 @@ const AppWithProvider: React.FC = () => {
 // ==================== App Content Component ====================
 const AppContent: React.FC = () => {
   const [view, setView] = useState<ViewState>('wardrobe');
-  const { user, loading, login, logout } = useApp();
+  const { user, loading, login, logout, loadUserData } = useApp();
+
+  // ==================== 前后台切换自动同步 & 定时同步 ====================
+  // 定义轮询间隔，5分钟 (300000 毫秒)
+  const SYNC_INTERVAL = 5 * 60 * 1000;
+
+  // 1. 如果支持页面可见性 API：当从后台切回前台时重新拉取数据
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      // 这里的 document.visibilityState 'visible' 意味着 App 被打开或者从后台唤醒
+      if (document.visibilityState === 'visible' && user?.id) {
+        console.log('[Lumina Sync] App resumed, trigger background sync...');
+        // 静默发起到服务器拉取数据
+        loadUserData(user.id);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user?.id, loadUserData]);
+
+  // 2. 页面保持在前台的定时轮询（如果在后台有些浏览器会自动把它停掉或节流）
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const intervalId = setInterval(() => {
+      // 只有当前页面在前台时，才发起轮询
+      if (document.visibilityState === 'visible') {
+        console.log('[Lumina Sync] Background polling triggered...');
+        loadUserData(user.id);
+      }
+    }, SYNC_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [user?.id, loadUserData]);
 
   // 登录界面
   if (loading) {
@@ -54,11 +90,11 @@ const AppContent: React.FC = () => {
 
   // 已登录显示主界面
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-slate-50 to-indigo-50 text-slate-900 font-sans selection:bg-rose-200 overflow-hidden">
-      <main className="w-[393px] h-[852px] mx-auto bg-white/50 backdrop-blur-xl shadow-2xl overflow-hidden relative border-x border-white/40">
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-slate-50 to-indigo-50 text-slate-900 font-sans selection:bg-rose-200">
+      <main className="w-full max-w-md mx-auto min-h-screen bg-white shadow-2xl relative border-x border-slate-100 flex flex-col">
 
         {/* 顶部用户信息 */}
-        <div className="fixed top-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-lg border-b border-slate-100 flex justify-between items-center z-50">
+        <div className="sticky top-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-lg border-b border-slate-100 flex justify-between items-center z-50">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 flex items-center justify-center text-white text-xs font-medium">
               {user?.profile?.name?.[0] || 'U'}
@@ -75,7 +111,7 @@ const AppContent: React.FC = () => {
         </div>
 
         {/* Views */}
-        <div className="animate-fade-in h-[calc(100vh-120px)] overflow-y-auto no-scrollbar pt-12">
+        <div className="animate-fade-in flex-1 overflow-y-auto no-scrollbar pb-24">
           {view === 'wardrobe' && user && (
             <WardrobeGallery />
           )}
@@ -94,15 +130,17 @@ const AppContent: React.FC = () => {
         </div>
 
         {/* Bottom Navigation */}
-        <nav className="fixed bottom-4 left-4 right-4 bg-white/90 backdrop-blur-lg rounded-2xl shadow-xl shadow-slate-200/50 border border-white/50 flex justify-between items-center px-4 py-3 z-50 max-w-[365px] mx-auto">
-          <NavButton active={view === 'wardrobe'} onClick={() => setView('wardrobe')} icon={<Shirt size={22} />} label="衣橱" />
-          <NavButton active={view === 'stylist'} onClick={() => setView('stylist')} icon={<Sparkles size={22} />} label="搭配" />
-          <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={<CalendarDays size={22} />} label="记录" />
-          <NavButton active={view === 'analytics'} onClick={() => setView('analytics')} icon={<BarChart2 size={22} />} label="分析" />
-          <NavButton active={view === 'profile'} onClick={() => setView('profile')} icon={<User size={22} />} label="我的" />
-        </nav>
+        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none flex justify-center pb-4 px-4">
+          <nav className="w-full max-w-[365px] bg-white/90 backdrop-blur-lg rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 flex justify-between items-center px-4 py-3 pointer-events-auto">
+            <NavButton active={view === 'wardrobe'} onClick={() => setView('wardrobe')} icon={<Shirt size={22} />} label="衣橱" />
+            <NavButton active={view === 'stylist'} onClick={() => setView('stylist')} icon={<Sparkles size={22} />} label="搭配" />
+            <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={<CalendarDays size={22} />} label="记录" />
+            <NavButton active={view === 'analytics'} onClick={() => setView('analytics')} icon={<BarChart2 size={22} />} label="分析" />
+            <NavButton active={view === 'profile'} onClick={() => setView('profile')} icon={<User size={22} />} label="我的" />
+          </nav>
+        </div>
       </main>
-      
+
       {/* PWA 更新提示 */}
       <PWAUpdateToast position="bottom" />
     </div>

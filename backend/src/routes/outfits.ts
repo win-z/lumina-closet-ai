@@ -31,27 +31,20 @@ const listOutfits = asyncHandler(async (req: Request, res: Response) => {
 
   const outfits = await SavedOutfitModel.findByUserId(userId);
 
-  // 获取搭配中的服装详情
-  const outfitsWithItems = await Promise.all(outfits.map(async (outfit) => {
-    const clothingItems = [];
-    if (outfit.dressId) {
-      const item = await ClothingItemModel.findById(outfit.dressId, userId);
-      if (item) clothingItems.push(item);
-    }
-    if (outfit.topId) {
-      const item = await ClothingItemModel.findById(outfit.topId, userId);
-      if (item) clothingItems.push(item);
-    }
-    if (outfit.bottomId) {
-      const item = await ClothingItemModel.findById(outfit.bottomId, userId);
-      if (item) clothingItems.push(item);
-    }
-    if (outfit.shoesId) {
-      const item = await ClothingItemModel.findById(outfit.shoesId, userId);
-      if (item) clothingItems.push(item);
-    }
+  // 收集所有搭配引用的服装 ID，一次批量查询（避免 N+1）
+  const allIds = [...new Set(
+    outfits.flatMap(o => [o.dressId, o.topId, o.bottomId, o.shoesId].filter(Boolean) as string[])
+  )];
+  const allItems = await ClothingItemModel.findByIds(allIds);
+  const itemMap = new Map(allItems.map(item => [item.id, item]));
+
+  const outfitsWithItems = outfits.map(outfit => {
+    const clothingItems = [outfit.dressId, outfit.topId, outfit.bottomId, outfit.shoesId]
+      .filter(Boolean)
+      .map(id => itemMap.get(id!))
+      .filter(Boolean);
     return { ...outfit, clothingItems };
-  }));
+  });
 
   res.json({
     success: true,
@@ -59,6 +52,7 @@ const listOutfits = asyncHandler(async (req: Request, res: Response) => {
     data: outfitsWithItems,
   });
 });
+
 
 // POST /api/outfits - 保存新搭配
 const createOutfit = asyncHandler(async (req: Request, res: Response<ApiResponse<SavedOutfit>>) => {
@@ -88,7 +82,7 @@ const createOutfit = asyncHandler(async (req: Request, res: Response<ApiResponse
   if (tryonImageUrl && tryonImageUrl.startsWith('data:image')) {
     try {
       // 上传 base64 图片到 COS
-      const uploadResult = await CosService.uploadBase64Image(tryonImageUrl, userId);
+      const uploadResult = await CosService.uploadBase64Image(tryonImageUrl, userId, 'outfit');
       tryonImageUrl = uploadResult.url;
     } catch (err) {
       console.error('上传搭配图片失败:', err);

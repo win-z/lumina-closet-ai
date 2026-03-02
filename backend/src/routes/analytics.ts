@@ -10,38 +10,31 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { ClothingItemModel, DiaryEntryModel, ClothingRecordModel, AnalysisResultModel } from '../models';
+import { ClothingItemModel, DiaryEntryModel, AnalysisResultModel } from '../models';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { ApiResponse, ClothingCategory } from '../types';
 
 const router = Router();
 
 /**
- * GET /api/analytics/summary
- * 获取衣橱摘要统计
+ * 计算摘要统计（内部共功能函数，可被 getSummary 和 refresh 复用）
  */
-const getSummary = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
-  const userId = req.user!.userId;
-
+async function computeSummary(userId: string) {
   const wardrobe = await ClothingItemModel.findByUserId(userId);
   const diaryCount = await DiaryEntryModel.countByUserId(userId);
 
-  // 计算总价值
-  const totalValue = wardrobe.reduce((sum, item) => sum + (item.price || 0), 0);
+  const totalValue = wardrobe.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
 
-  // 分类统计
   const categoryStats: Record<string, number> = {};
   wardrobe.forEach(item => {
     categoryStats[item.category] = (categoryStats[item.category] || 0) + 1;
   });
 
-  // 颜色统计
   const colorStats: Record<string, number> = {};
   wardrobe.forEach(item => {
     colorStats[item.color] = (colorStats[item.color] || 0) + 1;
   });
 
-  // 标签统计
   const tagStats: Record<string, number> = {};
   wardrobe.forEach(item => {
     item.tags.forEach(tag => {
@@ -49,27 +42,98 @@ const getSummary = asyncHandler(async (req: Request, res: Response<ApiResponse>)
     });
   });
 
-  // 最常穿着
   const topWorn = await DiaryEntryModel.getMostWornClothing(userId, 10);
   const topWornItems = await ClothingItemModel.findByIds(topWorn.map(w => w.clothingId));
+
+  return {
+    totalItems: wardrobe.length,
+    totalValue,
+    diaryCount,
+    categoryStats,
+    colorStats,
+    tagStats,
+    topWorn: topWorn.map(w => ({
+      ...topWornItems.find(i => i.id === w.clothingId),
+      wearCount: w.count,
+    })).filter(Boolean),
+  };
+}
+
+/** 缓存有效期：24小时（毫秒） */
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * GET /api/analytics/summary
+ * 优先返回 24h 内的缓存，否则重新计算并写入缓存
+ */
+const getSummary = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+
+  // 读取最新缓存
+  const cached = await AnalysisResultModel.findLatestByUserId(userId);
+  if (cached) {
+    const age = Date.now() - new Date(cached.createdAt).getTime();
+    if (age < CACHE_TTL_MS && cached.aiAnalysis) {
+      try {
+        const summaryData = JSON.parse(cached.aiAnalysis);
+        return res.json({
+          success: true,
+          message: '获取成功（缓存）',
+          data: { ...summaryData, _cached: true, _cachedAt: cached.createdAt },
+        });
+      } catch {
+        // 缓存格式错误，继续重新计算
+      }
+    }
+  }
+
+  // 缓存过期或不存在，重新计算
+  const data = await computeSummary(userId);
+
+  // 异步写入缓存（不阻塞响应）
+  AnalysisResultModel.create(userId, {
+    categoryStats: data.categoryStats,
+    colorStats: data.colorStats,
+    brandStats: {},
+    priceStats: { totalValue: data.totalValue, averagePrice: 0, maxPrice: 0, minPrice: 0 },
+    wearStats: [],
+    aiAnalysis: JSON.stringify(data), // 将完整 summary 序列化存入 aiAnalysis
+  }).catch(() => { }); // 缓存写入失败不影响主流程
+
 
   res.json({
     success: true,
     message: '获取成功',
-    data: {
-      totalItems: wardrobe.length,
-      totalValue,
-      diaryCount,
-      categoryStats,
-      colorStats,
-      tagStats,
-      topWorn: topWorn.map(w => ({
-        ...topWornItems.find(i => i.id === w.clothingId),
-        wearCount: w.count,
-      })).filter(Boolean),
-    },
+    data: { ...data, _cached: false },
   });
 });
+
+/**
+ * POST /api/analytics/refresh
+ * 强制重新计算并更新缓存
+ */
+const refreshSummary = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+  const data = await computeSummary(userId);
+
+  // 同步写入缓存
+  await AnalysisResultModel.create(userId, {
+    categoryStats: data.categoryStats,
+    colorStats: data.colorStats,
+    brandStats: {},
+    priceStats: { totalValue: data.totalValue, averagePrice: 0, maxPrice: 0, minPrice: 0 },
+    wearStats: [],
+    aiAnalysis: JSON.stringify(data), // 将完整 summary 序列化存入 aiAnalysis
+  });
+
+
+  res.json({
+    success: true,
+    message: '分析已刷新',
+    data: { ...data, _cached: false },
+  });
+});
+
 
 /**
  * GET /api/analytics/category
@@ -95,7 +159,7 @@ const getCategoryStats = asyncHandler(async (req: Request, res: Response<ApiResp
       color: item.color,
     });
     acc[item.category].colors[item.color] = (acc[item.category].colors[item.color] || 0) + 1;
-    acc[item.category].totalValue += item.price || 0;
+    acc[item.category].totalValue += Number(item.price) || 0;
 
     return acc;
   }, {} as Record<string, any>);
@@ -253,12 +317,13 @@ const getBrandStats = asyncHandler(async (req: Request, res: Response<ApiRespons
       brandStats[brand] = { count: 0, totalValue: 0, items: [] };
     }
     brandStats[brand].count++;
-    brandStats[brand].totalValue += item.price || 0;
+    brandStats[brand].totalValue += Number(item.price) || 0;
     brandStats[brand].items.push({
       id: item.id,
       name: item.name,
       category: item.category,
       price: item.price,
+      imageFront: item.imageFront,
     });
   });
 
@@ -285,22 +350,22 @@ const getPriceStats = asyncHandler(async (req: Request, res: Response<ApiRespons
   const userId = req.user!.userId;
   const wardrobe = await ClothingItemModel.findByUserId(userId);
 
-  const itemsWithPrice = wardrobe.filter((item) => item.price && item.price > 0);
-  const totalValue = itemsWithPrice.reduce((sum, item) => sum + (item.price || 0), 0);
+  const itemsWithPrice = wardrobe.filter((item) => Number(item.price) > 0);
+  const totalValue = itemsWithPrice.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
 
   const stats = {
     totalItems: wardrobe.length,
     itemsWithPrice: itemsWithPrice.length,
     totalValue,
     averagePrice: itemsWithPrice.length > 0 ? Math.round(totalValue / itemsWithPrice.length) : 0,
-    maxPrice: itemsWithPrice.length > 0 ? Math.max(...itemsWithPrice.map((i) => i.price || 0)) : 0,
-    minPrice: itemsWithPrice.length > 0 ? Math.min(...itemsWithPrice.map((i) => i.price || 0)) : 0,
+    maxPrice: itemsWithPrice.length > 0 ? Math.max(...itemsWithPrice.map((i) => Number(i.price) || 0)) : 0,
+    minPrice: itemsWithPrice.length > 0 ? Math.min(...itemsWithPrice.map((i) => Number(i.price) || 0)) : 0,
     priceRanges: {
-      '0-100': itemsWithPrice.filter((i) => (i.price || 0) <= 100).length,
-      '100-300': itemsWithPrice.filter((i) => (i.price || 0) > 100 && (i.price || 0) <= 300).length,
-      '300-500': itemsWithPrice.filter((i) => (i.price || 0) > 300 && (i.price || 0) <= 500).length,
-      '500-1000': itemsWithPrice.filter((i) => (i.price || 0) > 500 && (i.price || 0) <= 1000).length,
-      '1000+': itemsWithPrice.filter((i) => (i.price || 0) > 1000).length,
+      '0-100': itemsWithPrice.filter((i) => (Number(i.price) || 0) <= 100).length,
+      '100-300': itemsWithPrice.filter((i) => (Number(i.price) || 0) > 100 && (Number(i.price) || 0) <= 300).length,
+      '300-500': itemsWithPrice.filter((i) => (Number(i.price) || 0) > 300 && (Number(i.price) || 0) <= 500).length,
+      '500-1000': itemsWithPrice.filter((i) => (Number(i.price) || 0) > 500 && (Number(i.price) || 0) <= 1000).length,
+      '1000+': itemsWithPrice.filter((i) => (Number(i.price) || 0) > 1000).length,
     },
   };
 
@@ -318,8 +383,8 @@ const getPriceStats = asyncHandler(async (req: Request, res: Response<ApiRespons
 const getWearFrequencyStats = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
   const userId = req.user!.userId;
 
-  // 从穿着记录获取统计
-  const wearStats = await ClothingRecordModel.getWearStats(userId);
+  // 从日记记录获取穿着统计（ClothingRecordModel 已移除，使用日记数据）
+  const wearStats = await DiaryEntryModel.getMostWornClothing(userId, 100);
   const clothingIds = wearStats.map((s) => s.clothingId);
   const clothingItems = await ClothingItemModel.findByIds(clothingIds);
 
@@ -335,6 +400,7 @@ const getWearFrequencyStats = asyncHandler(async (req: Request, res: Response<Ap
       const item = clothingItems.find((i) => i.id === stat.clothingId);
       return {
         ...stat,
+        wearCount: stat.count,
         clothingItem: item,
       };
     }),
@@ -342,6 +408,7 @@ const getWearFrequencyStats = asyncHandler(async (req: Request, res: Response<Ap
       id: item.id,
       name: item.name,
       category: item.category,
+      imageFront: item.imageFront,
       lastWorn: item.lastWorn,
     })),
   };
@@ -356,6 +423,7 @@ const getWearFrequencyStats = asyncHandler(async (req: Request, res: Response<Ap
 // ==================== 路由注册 ====================
 
 router.get('/summary', getSummary);
+router.post('/refresh', refreshSummary);
 router.get('/category', getCategoryStats);
 router.get('/usage', getUsageStats);
 router.get('/recommendations', getRecommendations);
@@ -364,5 +432,6 @@ router.post('/save', saveAnalysis);
 router.get('/brand', getBrandStats);
 router.get('/price', getPriceStats);
 router.get('/wear', getWearFrequencyStats);
+
 
 export default router;

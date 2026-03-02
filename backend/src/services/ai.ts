@@ -65,8 +65,11 @@ export class AiService {
       ? imageBase64
       : `data:image/jpeg;base64,${cleanBase64Prefix(imageBase64)}`;
 
-    const prompt = `分析这张服装图片，返回JSON格式：
-{"name":"简短中文名称","color":"主色调","category":"上装/下装/连衣裙/外套/鞋履/配饰","tags":["风格1","季节1","材质1","场合1"]}
+    const prompt = `分析这张服装图片，识别以下信息并返回JSON格式：
+{"name":"简短中文名称","color":"主色调","category":"上装/下装/连衣裙/外套/鞋履/配饰","brand":"品牌名称(如果能从logo或标签识别则填写，否则填null)","tags":["风格1","季节1","材质1","场合1"]}
+- 如果无法识别品牌，请使用null而不是空字符串
+- category必须是：上装、下装、连衣裙、外套、鞋履、配饰 之一
+- tags从以下选择：休闲、商务、运动、复古、极简、约会、度假、春、夏、秋、冬、正式、街头、田园、学院、性感
 只返回JSON。`;
 
     try {
@@ -88,7 +91,12 @@ export class AiService {
 
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const result = JSON.parse(jsonMatch[0]);
+        // 处理brand为null的情况
+        if (result.brand === null || result.brand === 'null') {
+          result.brand = undefined;
+        }
+        return result;
       }
     } catch (e: any) {
       logger.error('服装识别失败:', e.message);

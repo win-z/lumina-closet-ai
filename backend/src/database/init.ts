@@ -112,8 +112,8 @@ export const initDatabase = async (): Promise<void> => {
 async function fixMissingColumns() {
   try {
     // 获取当前数据库名
-    const dbResult = await query<{ DATABASE(): string }>('SELECT DATABASE()');
-    const dbName = dbResult[0]?.['DATABASE()'];
+    const dbResult = await query<{ DATABASE: string }>('SELECT DATABASE()');
+    const dbName = dbResult[0]?.DATABASE;
     
     // 检查 saved_outfits 表的字段
     const savedOutfitColumns = await query<{ column_name: string }>(`

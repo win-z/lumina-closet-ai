@@ -57,17 +57,17 @@ const updateProfile = asyncHandler(async (req: Request, res: Response<ApiRespons
   let photoBack = profileData.photoBack || undefined;
 
   if (photoFront && photoFront.startsWith('data:')) {
-    const result = await CosService.uploadBase64Image(cleanBase64Prefix(photoFront), userId);
+    const result = await CosService.uploadBase64Image(cleanBase64Prefix(photoFront), userId, 'profile');
     photoFront = result.url;
   }
 
   if (photoSide && photoSide.startsWith('data:')) {
-    const result = await CosService.uploadBase64Image(cleanBase64Prefix(photoSide), userId);
+    const result = await CosService.uploadBase64Image(cleanBase64Prefix(photoSide), userId, 'profile');
     photoSide = result.url;
   }
 
   if (photoBack && photoBack.startsWith('data:')) {
-    const result = await CosService.uploadBase64Image(cleanBase64Prefix(photoBack), userId);
+    const result = await CosService.uploadBase64Image(cleanBase64Prefix(photoBack), userId, 'profile');
     photoBack = result.url;
   }
 

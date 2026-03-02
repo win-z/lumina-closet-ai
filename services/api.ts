@@ -5,9 +5,13 @@
 
 import { ClothingItem, BodyProfile } from "../types";
 
-// 开发环境直连后端，生产环境使用相对路径
-// 手机测试时使用局域网IP，后端部署后改为环境变量
-const API_BASE = import.meta.env.VITE_API_URL || 'http://10.98.108.49:3000';
+// 从环境变量读取，不允许硬编码 IP
+const API_BASE = (() => {
+  const url = import.meta.env.VITE_API_URL;
+  if (!url) throw new Error('[api] 环境变量 VITE_API_URL 未配置');
+  return url.replace(/\/$/, '');
+})();
+
 
 interface ApiResult<T = unknown> {
   success: boolean;
@@ -211,64 +215,13 @@ export const diaryApi = {
   },
 };
 
-// ==================== 穿着记录API ====================
 
-export const clothingRecordApi = {
-  getAll: async (startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams();
-    if (startDate) params.set('startDate', startDate);
-    if (endDate) params.set('endDate', endDate);
-    return request<{
-      id: string;
-      date: string;
-      clothingIds: string[];
-      notes?: string;
-      clothingItems: any[];
-      createdAt: string;
-      updatedAt: string;
-    }[]>(`/api/clothing-records?${params.toString()}`);
-  },
-  getByDate: async (date: string) => {
-    return request<{
-      id: string;
-      date: string;
-      clothingIds: string[];
-      notes?: string;
-      clothingItems: any[];
-      createdAt: string;
-      updatedAt: string;
-    } | null>(`/api/clothing-records/date/${date}`);
-  },
-  create: async (data: { date: string; clothingIds: string[]; notes?: string }) => {
-    return request('/api/clothing-records', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-  update: async (id: string, data: { clothingIds?: string[]; notes?: string }) => {
-    return request(`/api/clothing-records/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  },
-  delete: async (id: string) => {
-    return request(`/api/clothing-records/${id}`, { method: 'DELETE' });
-  },
-  getStats: async () => {
-    return request<{
-      clothingId: string;
-      wearCount: number;
-      lastWorn?: string;
-      clothingItem?: any;
-    }[]>('/api/clothing-records/stats');
-  },
-};
 
 // ==================== AI API ====================
 
 export const aiApi = {
   autoTag: async (imageBase64: string) => {
-    return request<{ name: string; color: string; category: string; tags: string[] }>('/api/ai/auto-tag', {
+    return request<{ name: string; color: string; category: string; brand?: string; tags: string[] }>('/api/ai/auto-tag', {
       method: 'POST',
       body: JSON.stringify({ image: imageBase64 }),
     });
@@ -372,7 +325,21 @@ export const analyticsApi = {
       body: JSON.stringify(data),
     });
   },
+
+  /** 强制重新计算并更新缓存（调用后端 POST /api/analytics/refresh） */
+  refresh: async () => {
+    return request<{
+      totalItems: number;
+      totalValue: number;
+      diaryCount: number;
+      categoryStats: Record<string, number>;
+      colorStats: Record<string, number>;
+      tagStats: Record<string, number>;
+      topWorn: any[];
+    }>('/api/analytics/refresh', { method: 'POST' });
+  },
 };
+
 
 // ==================== 已保存搭配 API ====================
 
@@ -407,6 +374,23 @@ export const outfitsApi = {
   }) => {
     return request('/api/outfits', {
       method: 'POST',
+      body: JSON.stringify(outfit),
+    });
+  },
+  update: async (id: string, outfit: {
+    name?: string;
+    tags?: string[];
+    weather?: string;
+    occasion?: string;
+    dressId?: string;
+    topId?: string;
+    bottomId?: string;
+    shoesId?: string;
+    reasoning?: string;
+    tryonImage?: string;
+  }) => {
+    return request(`/api/outfits/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(outfit),
     });
   },
@@ -459,14 +443,6 @@ class ApiService {
 
   async addClothing(item: Partial<ClothingItem>) {
     return wardrobeApi.add(item);
-  }
-
-  async getClothingRecords(startDate?: string, endDate?: string) {
-    return clothingRecordApi.getAll(startDate, endDate);
-  }
-
-  async addClothingRecord(data: { date: string; clothingIds: string[]; notes?: string }) {
-    return clothingRecordApi.create(data);
   }
 
   async updateProfile(data: Partial<BodyProfile>) {

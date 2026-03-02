@@ -62,7 +62,12 @@ export const clothingItemSchema = z.object({
   name: z.string().min(0).max(100).optional().nullable().transform(v => v || ''),
   color: z.string().min(0).max(50).optional().nullable().transform(v => v || ''),
   brand: z.string().max(100).optional().nullable(),
-  price: z.number().positive().optional().nullable(),
+  price: z.union([z.number(), z.string()]).optional().nullable().transform(v => {
+    if (v === null || v === undefined || v === '') return undefined;
+    if (typeof v === 'number') return v;
+    const num = Number(v);
+    return isNaN(num) ? undefined : num;
+  }),
   purchaseDate: z.string().optional().nullable(),
   tags: z.array(z.string()).min(0).max(20).default([]),
 });
