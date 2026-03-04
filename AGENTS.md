@@ -300,13 +300,13 @@ MIT
 | **公网 IP** | `101.37.159.90` |
 | **用户名** | `root` |
 | **SSH 端口** | `22` |
-| **登录方式** | 密钥登录（`id_antigravity`） |
-| **密钥路径** | `~/.ssh/id_antigravity` |
-| **备用密码** | `Aa13273956789.0`（服务器禁用了密码登录，必须用密钥） |
+| **登录方式** | PEM 密钥文件登录 |
+| **PEM 密钥路径** | `~/github/lumina-closet-ai-main/myapp.pem` |
+| **备用密码** | `Aa13273956789.0`（服务器禁用了密码 SSH 登录，必须用 PEM 密钥） |
 
-**快捷连接命令：**
+**快捷连接命令（在本机终端）：**
 ```bash
-ssh -i ~/.ssh/id_antigravity root@101.37.159.90
+ssh -i ~/github/lumina-closet-ai-main/myapp.pem -o StrictHostKeyChecking=no root@101.37.159.90
 ```
 
 ### 宝塔面板
@@ -319,20 +319,72 @@ ssh -i ~/.ssh/id_antigravity root@101.37.159.90
 - **密码**: `12345678`
 
 ### 项目路径（服务器上）
+- **项目根目录**: `/www/wwwroot/lumina-closet`
 - **前端 dist 文件**: `/www/wwwroot/lumina-closet/dist`
 - **后端**: `/www/wwwroot/lumina-closet/backend`
-- **Nginx 配置**: 宝塔面板管理，或 `/www/server/panel/vhost/nginx/`
+- **Nginx 配置**: `/www/server/nginx/conf/vhost/lumina-closet.conf`
 - **PM2 应用名**: `lumina-backend`
 
-### 部署规则（重要！）
-> 凡涉及服务器前后端代码变更，目前已配置 **GitHub Actions 自动化流水线**：
-> 1. 您只需要在本地提交代码并 **`git push origin main`**。
-> 2. GitHub Actions 将会自动连接服务器、拉取代码、重装依赖、`npm run build` 打包前端，以及 `pm2 restart` 重启后端。
-> 3. 您可以通过访问当前仓库的 `Actions` 页面查看实时部署进度。
+---
 
-**手动一键重启命令（备用）**：
-如果您临时需要不通过 Push 而是在本地直接重启服务器的后端，可以运行：
+### 🚀 部署流程（CI/CD 自动化）
+
+**已配置 GitHub Actions 自动部署**（`.github/workflows/deploy.yml`）：
+
+> **只需 `git push origin main`，剩下全自动！**
+
+GitHub Actions 会自动：
+1. SSH 连接服务器
+2. `git pull` 拉取最新代码
+3. `npm run build` 构建前端
+4. `cd backend && npm install && npm run build` 构建后端
+5. `pm2 reload lumina-backend` 重启后端
+
+部署进度可在此查看：`https://github.com/win-z/lumina-closet-ai/actions`
+
+#### 🔑 GitHub Actions 所需 Secrets（只需配置一次）
+
+在仓库 **Settings → Secrets and variables → Actions → New repository secret** 中添加：
+
+| Secret 名称 | 值 |
+|---|---|
+| `SERVER_HOST` | `101.37.159.90` |
+| `SERVER_USER` | `root` |
+| `SERVER_SSH_KEY` | PEM 私钥全文（`cat ~/github/lumina-closet-ai-main/myapp.pem`） |
+| `GH_TOKEN` | GitHub Personal Access Token（用于服务器拉取私有仓库，如仓库为公开可不填） |
+
+---
+
+### 🔧 手动部署备用方案（CI/CD 失败时使用）
+
 ```bash
-ssh -i ~/.ssh/id_antigravity root@101.37.159.90 "cd /www/wwwroot/lumina-closet/backend && pm2 restart lumina-backend"
+# 步骤1：pull 代码
+ssh -i ~/github/lumina-closet-ai-main/myapp.pem -o StrictHostKeyChecking=no root@101.37.159.90 \
+  "cd /www/wwwroot/lumina-closet && git pull origin main 2>&1"
+
+# 步骤2：后台 build + restart（⚠️ 必须 nohup，SSH 长命令会超时断连）
+ssh -i ~/github/lumina-closet-ai-main/myapp.pem -o StrictHostKeyChecking=no root@101.37.159.90 \
+  "nohup bash -c 'cd /www/wwwroot/lumina-closet && npm run build > /tmp/build.log 2>&1 && cd backend && npm install >> /tmp/build.log 2>&1 && npm run build >> /tmp/build.log 2>&1 && pm2 restart lumina-backend >> /tmp/build.log 2>&1 && echo DEPLOY_ALL_DONE >> /tmp/build.log' &"
+
+# 步骤3：检查进度（约 60-120 秒后）
+ssh -i ~/github/lumina-closet-ai-main/myapp.pem -o StrictHostKeyChecking=no root@101.37.159.90 \
+  "tail -30 /tmp/build.log"
+# 出现 DEPLOY_ALL_DONE 即成功
 ```
+
+---
+
+### ⚠️ 踩坑记录（AI Agent 必读）
+
+1. **SSH 长命令超时（exit 255）**：`npm run build` 约需 60s+，直接 SSH 执行会超时中断。
+   - **✅ 解法**：`nohup ... &` 后台运行，轮询 `/tmp/build.log`。
+
+2. **密码登录被禁用**：`sshpass`/`expect` 无效，必须用 PEM 密钥。
+   - **✅ 密钥路径**：`~/github/lumina-closet-ai-main/myapp.pem`
+
+3. **服务器项目路径**：`/www/wwwroot/lumina-closet`（不是本地的 `closet/`）
+
+4. **前后端都需要 build**：前端 `npm run build` → 后端 `npm install && npm run build` → `pm2 restart lumina-backend`
+
+5. **PM2 进程名**：`lumina-backend`，不要用 `pm2 restart all`
 
