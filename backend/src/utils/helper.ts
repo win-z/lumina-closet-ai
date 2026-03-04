@@ -24,10 +24,22 @@ export const formatDate = (date: Date = new Date()): string => {
  */
 export const formatMySQLDate = (dateInput: string | Date | null | undefined): string | null => {
   if (!dateInput) return null;
+
+  // 如果已经是 YYYY-MM-DD 格式且没有时间部分，直接返回，避免解析带来的时区偏移
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    return dateInput;
+  }
+
   try {
     const d = new Date(dateInput);
     if (isNaN(d.getTime())) return null;
-    return d.toISOString().split('T')[0];
+
+    // 使用本地时间获取年、月、日，避免 toISOString() 带来的时区导致减一天的问题
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
   } catch (e) {
     return null;
   }
