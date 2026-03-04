@@ -263,15 +263,21 @@ export class DiaryEntryModel {
    */
   static async getMostWornClothing(userId: string, limit: number = 5): Promise<{ clothingId: string; count: number }[]> {
     const rows = await query<{ clothingId: string; count: number }>(
-      `SELECT JSON_UNQUOTE(JSON_EXTRACT(clothing_ids, CONCAT('$[', numbers.n, ']'))) as clothingId, COUNT(*) as count
-       FROM diary_entries,
+      `SELECT JSON_UNQUOTE(JSON_EXTRACT(de.clothing_ids, CONCAT('$[', numbers.n, ']'))) as clothingId, COUNT(*) as count
+       FROM diary_entries de,
        (SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) as numbers
-       WHERE diary_entries.user_id = ?
-         AND numbers.n < JSON_LENGTH(clothing_ids)
+       WHERE de.user_id = ?
+         AND numbers.n < JSON_LENGTH(de.clothing_ids)
+         AND JSON_UNQUOTE(JSON_EXTRACT(de.clothing_ids, CONCAT('$[', numbers.n, ']'))) IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM clothing_items ci
+           WHERE ci.id = JSON_UNQUOTE(JSON_EXTRACT(de.clothing_ids, CONCAT('$[', numbers.n, ']')))
+             AND ci.user_id = ?
+         )
        GROUP BY clothingId
        ORDER BY count DESC
        LIMIT ?`,
-      [userId, limit]
+      [userId, userId, limit]
     );
     return rows;
   }
