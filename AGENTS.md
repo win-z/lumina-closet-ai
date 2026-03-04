@@ -1,5 +1,6 @@
 # Lumina Closet AI - AI智能衣橱助手
-
+# 所有跟服务配置、账号、密码相关的东西，都要写到这个全局配置里面
+# 遇到的很难解决的问题，解决方式也要简洁写到这个文档里面
 ## 项目概述
 
 Lumina Closet AI 是一款 AI 驱动的智能个人衣橱助手应用，帮助用户管理服装、获取穿搭建议、尝试虚拟穿搭。
@@ -324,13 +325,14 @@ ssh -i ~/.ssh/id_antigravity root@101.37.159.90
 - **PM2 应用名**: `lumina-backend`
 
 ### 部署规则（重要！）
-> 凡涉及服务器前后端代码变更，必须执行以下操作：
-> 1. **同步代码**（git pull 或 scp/rsync 上传）
-> 2. **前端修改**：执行 `npm run build` 重新生成 dist
-> 3. **后端修改**：执行 `pm2 restart lumina-backend`
-> 4. **Nginx 配置变更**：执行 `nginx -s reload`
+> 凡涉及服务器前后端代码变更，目前已配置 **GitHub Actions 自动化流水线**：
+> 1. 您只需要在本地提交代码并 **`git push origin main`**。
+> 2. GitHub Actions 将会自动连接服务器、拉取代码、重装依赖、`npm run build` 打包前端，以及 `pm2 restart` 重启后端。
+> 3. 您可以通过访问当前仓库的 `Actions` 页面查看实时部署进度。
 
-**一键重启命令（后端）**：
+**手动一键重启命令（备用）**：
+如果您临时需要不通过 Push 而是在本地直接重启服务器的后端，可以运行：
 ```bash
-ssh -i /Users/zhaojianhua/github/lumina-closet-ai-main/myapp.pem root@101.37.159.90 "cd /www/wwwroot/lumina-closet/backend && pm2 restart lumina-backend"
+ssh -i ~/.ssh/id_antigravity root@101.37.159.90 "cd /www/wwwroot/lumina-closet/backend && pm2 restart lumina-backend"
 ```
+
