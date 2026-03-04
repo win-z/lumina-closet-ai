@@ -340,7 +340,9 @@ GitHub Actions 会自动：
 4. `cd backend && npm install && npm run build` 构建后端
 5. `pm2 reload lumina-backend` 重启后端
 
-部署进度可在此查看：`https://github.com/win-z/lumina-closet-ai/actions`
+**验证状态：**
+- ✅ **已于 2026-03-04 成功验证**。当前流程稳定，`git push` 后约 2-3 分钟服务即完成更新。
+- 部署进度可在此查看：`https://github.com/win-z/lumina-closet-ai/actions`
 
 #### 🔑 GitHub Actions 所需 Secrets（只需配置一次）
 
