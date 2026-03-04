@@ -84,22 +84,28 @@ const getSummary = asyncHandler(async (req: Request, res: Response<ApiResponse>)
   const cached = await AnalysisResultModel.findLatestByUserId(userId);
   if (cached) {
     const age = Date.now() - new Date(cached.createdAt).getTime();
-    if (age < CACHE_TTL_MS && cached.aiAnalysis) {
-      try {
-        const summaryData = JSON.parse(cached.aiAnalysis);
-        return res.json({
-          success: true,
-          message: '获取成功（缓存）',
-          data: { ...summaryData, _cached: true, _cachedAt: cached.createdAt },
-        });
-      } catch {
-        // 缓存格式错误，继续重新计算
-      }
+    if (age < CACHE_TTL_MS) {
+      return res.json({
+        success: true,
+        message: '获取成功（缓存）',
+        data: {
+          totalItems: Object.values(cached.categoryStats || {}).reduce((a: number, b: number) => a + b, 0),
+          totalValue: cached.priceStats?.totalValue || 0,
+          priceStats: cached.priceStats,
+          categoryStats: cached.categoryStats,
+          colorStats: cached.colorStats,
+          brandStats: cached.brandStats,
+          aiAnalysis: cached.aiAnalysis, // 这里现在存储的是真正的 AI 文本
+          _cached: true,
+          _cachedAt: cached.createdAt
+        },
+      });
     }
   }
 
   // 缓存过期或不存在，重新计算
   const data = await computeSummary(userId);
+  const aiAnalysis = cached?.aiAnalysis; // 承替旧的分析结果
 
   // 异步写入缓存（不阻塞响应）
   AnalysisResultModel.create(userId, {
@@ -108,14 +114,18 @@ const getSummary = asyncHandler(async (req: Request, res: Response<ApiResponse>)
     brandStats: {},
     priceStats: data.priceStats,
     wearStats: [],
-    aiAnalysis: JSON.stringify(data), // 将完整 summary 序列化存入 aiAnalysis
-  }).catch(() => { }); // 缓存写入失败不影响主流程
+    aiAnalysis: aiAnalysis, // 保持分析结果持久
+  }).catch(() => { });
 
 
   res.json({
     success: true,
     message: '获取成功',
-    data: { ...data, _cached: false },
+    data: {
+      ...data,
+      aiAnalysis, // 返回承替后的分析结果
+      _cached: false
+    },
   });
 });
 
@@ -134,7 +144,7 @@ const refreshSummary = asyncHandler(async (req: Request, res: Response<ApiRespon
     brandStats: {},
     priceStats: data.priceStats,
     wearStats: [],
-    aiAnalysis: JSON.stringify(data), // 将完整 summary 序列化存入 aiAnalysis
+    // aiAnalysis 不在这里更新，由专用的 AI 分析接口更新
   });
 
 

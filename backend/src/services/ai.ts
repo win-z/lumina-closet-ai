@@ -39,23 +39,37 @@ export class AiService {
   }
 
   private async chatRequest(body: SiliconFlowChatRequest): Promise<string> {
-    const response = await fetch(this.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60秒超时
 
-    if (!response.ok) {
-      const error = await response.text();
-      logger.error('硅基流动 API 错误:', { status: response.status, error });
-      throw new Error(`硅基流动 API 请求失败: ${response.status}`);
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        logger.error('硅基流动 API 错误:', { status: response.status, error });
+        throw new Error(`硅基流动 API 请求失败: ${response.status}`);
+      }
+
+      const data = await response.json() as { choices?: { message?: { content?: string } }[] };
+      return data.choices?.[0]?.message?.content || '';
+    } catch (e: any) {
+      if (e.name === 'AbortError') {
+        logger.error('硅基流动 API 请求超时 (60s)');
+        throw new Error('AI 服务响应超时，请稍后重试');
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const data = await response.json() as { choices?: { message?: { content?: string } }[] };
-    return data.choices?.[0]?.message?.content || '';
   }
 
   async autoTagClothing(imageBase64: string): Promise<AutoTagResult> {
@@ -129,7 +143,7 @@ export class AiService {
 
     // 构建提示词，如果有自定义提示词则优先使用
     let promptContent = '';
-    
+
     if (customPrompt && customPrompt.trim()) {
       promptContent = `作为专业时尚造型师，根据用户的个性化需求推荐穿搭：
 

@@ -11,8 +11,53 @@ import { useApp } from '../src/context/AppContext';
 import { useToast } from '../src/context/ToastContext';
 import { aiApi, outfitsApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
-import { Sparkles, CloudSun, Calendar, RefreshCw, BookmarkPlus, Trash2, Edit, Plus, X, Camera, Upload, Bookmark } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, Calendar, CloudSun, Smile,
+  Plus, X, BookmarkPlus, Trash2, Camera, Sparkles,
+  Sun, Cloud, CloudRain, Wind, Snowflake, RefreshCw, Send,
+  Shirt, Palette, Tag, Ruler, Scissors, Sparkle,
+  Edit, Upload, Bookmark
+} from 'lucide-react';
 import { ClothingCategory } from '../types';
+
+// 简单的 Markdown 渲染组件
+const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => {
+  const lines = content.split('\n');
+
+  return (
+    <div className={`space-y-1 ${className}`}>
+      {lines.map((line, i) => {
+        // 处理列表项
+        const isListItem = line.trim().startsWith('- ') || line.trim().startsWith('* ');
+        const cleanLine = isListItem ? line.trim().substring(2) : line;
+
+        // 处理加粗 **text**
+        const parts = cleanLine.split(/(\*\*.*?\*\*)/g);
+        const renderedLine = parts.map((part, j) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+              <strong key={j} className="font-bold text-indigo-900 mx-0.5">
+                {part.slice(2, -2)}
+              </strong>
+            );
+          }
+          return <span key={j}>{part}</span>;
+        });
+
+        if (isListItem) {
+          return (
+            <div key={i} className="flex gap-2 items-start pl-1">
+              <span className="text-indigo-300 mt-2 shrink-0 w-1 h-1 rounded-full bg-current opacity-60" />
+              <p className="flex-1">{renderedLine}</p>
+            </div>
+          );
+        }
+
+        return <p key={i} className={line.trim() === '' ? 'h-1' : ''}>{renderedLine}</p>;
+      })}
+    </div>
+  );
+};
 
 const Stylist: React.FC = () => {
   const { items: wardrobe, getById } = useWardrobe();
@@ -149,16 +194,40 @@ const Stylist: React.FC = () => {
       return;
     }
 
-    // 如果上传了真实照片，直接使用
+    // 如果上传了真实照片，直接保存并重置
     if (realPhoto) {
-      setSuggestion({
-        dressId: selectedDress,
-        topIds: selectedTops,
-        bottomIds: selectedBottoms,
-        shoesIds: selectedShoes,
-        tryOnImage: realPhoto,
-        reasoning: "用户上传的真实穿着照片",
-      });
+      setLoading(true);
+      try {
+        await outfitsApi.save({
+          name: `真实穿搭 ${new Date().toLocaleDateString()}`,
+          tags: ['真实照片', '手动搭配'],
+          dressId: selectedDress || undefined,
+          topId: selectedDress ? undefined : (selectedTops[0] || undefined),
+          bottomId: selectedDress ? undefined : (selectedBottoms[0] || undefined),
+          shoesId: selectedShoes[0] || undefined,
+          reasoning: "用户上传的真实穿着照片",
+          tryonImage: realPhoto,
+        });
+        showSuccess("已直接保存真实穿搭到您的搭配收藏！");
+
+        // 保存成功后重置状态
+        setRealPhoto('');
+        setSuggestion(null);
+        setCustomName('');
+        setCustomTags([]);
+        setSelectedTops([]);
+        setSelectedBottoms([]);
+        setSelectedDress(null);
+        setSelectedShoes([]);
+        setManualMode(false);
+        setActiveTab('saved');
+        loadSavedOutfits();
+      } catch (e: any) {
+        console.error("直接保存真实照片失败", e);
+        showError("自动保存失败: " + (e?.message || '未知错误'));
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -393,45 +462,16 @@ const Stylist: React.FC = () => {
                   value={customPrompt}
                   onChange={(e) => setCustomPrompt(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none"
-                  placeholder="例如：我想要一套适合春天约会的清新风格搭配，颜色要淡雅一些..."
+                  placeholder="例如：想要一套适合春天约会的清新风格搭配..."
                   rows={3}
                 />
                 <p className="text-xs text-slate-400 mt-1">
-                  留下你的搭配想法，AI会根据你的衣橱智能推荐
+                  输入你的想法，AI会根据衣橱智能推荐
                 </p>
               </div>
             )}
 
-            {/* 手动模式 - 显示天气和场合 */}
-            {manualMode && (
-              <>
-                <div>
-                  <label className="text-sm font-medium text-slate-600 mb-2 block">
-                    <CloudSun size={16} className="inline mr-1" /> 天气
-                  </label>
-                  <input
-                    type="text"
-                    value={weather}
-                    onChange={(e) => setWeather(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
-                    placeholder="例如：晴天, 24°C"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-slate-600 mb-2 block">
-                    <Calendar size={16} className="inline mr-1" /> 场合
-                  </label>
-                  <input
-                    type="text"
-                    value={occasion}
-                    onChange={(e) => setOccasion(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
-                    placeholder="例如：周末约会"
-                  />
-                </div>
-              </>
-            )}
+            {/* 手动模式 - 移除了天气和场合，直接开始选择 */}
 
             {/* 手动选择模式 - 服装选择器 */}
             {manualMode && (
@@ -611,44 +651,39 @@ const Stylist: React.FC = () => {
                   </div>
                 )}
 
-                {/* 上传真实穿着照片 */}
-                <div className="border-t border-slate-200 pt-4">
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">
-                    <Upload size={14} className="inline mr-1" />
-                    上传真实穿着照片（可选）
-                  </label>
+                {/* 上传真实穿着照片 - 紧凑化 */}
+                <div className="border-t border-slate-200 pt-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-tight mb-1 block">
+                        上传真实穿着照 (可选)
+                      </label>
+                      <p className="text-[10px] text-slate-400">使用照片代替AI生成效果</p>
+                    </div>
 
-                  {realPhoto ? (
-                    <div className="relative aspect-[9/16] rounded-xl overflow-hidden bg-slate-100">
-                      <ImageRenderer
-                        src={realPhoto}
-                        alt="真实穿着照片"
-                        aspectRatio="9/16"
-                        className="w-full h-full"
-                      />
-                      <button
-                        onClick={() => setRealPhoto('')}
-                        className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                      >
-                        <X size={16} />
-                      </button>
-                      <div className="absolute bottom-2 left-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-lg text-center">
-                        将使用此照片作为穿着效果
+                    {realPhoto ? (
+                      <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 flex-shrink-0">
+                        <img src={realPhoto} alt="预览" className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => setRealPhoto('')}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-sm"
+                        >
+                          <X size={10} />
+                        </button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="aspect-[9/16] bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center relative overflow-hidden">
-                      <Camera size={32} className="text-slate-400 mb-2" />
-                      <span className="text-sm text-slate-500">点击上传真实穿着照</span>
-                      <span className="text-xs text-slate-400 mt-1">或使用AI生成试穿图</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleRealPhotoUpload}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                    </div>
-                  )}
+                    ) : (
+                      <div className="relative w-16 h-16 rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer flex-shrink-0">
+                        <Camera size={20} className="text-slate-300" />
+                        <span className="text-[8px] text-slate-400 mt-1">上传照片</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleRealPhotoUpload}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <button
@@ -900,8 +935,14 @@ const Stylist: React.FC = () => {
               )}
 
               {/* Reasoning */}
-              <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-sm text-slate-600 leading-relaxed">{suggestion.reasoning}</p>
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles size={16} className="text-indigo-500" />
+                  <span className="text-sm font-semibold text-indigo-700">AI 穿搭建议</span>
+                </div>
+                <div className="text-sm text-indigo-900/80 leading-relaxed font-serif italic">
+                  <MarkdownRenderer content={suggestion.reasoning} />
+                </div>
               </div>
             </div>
           )}
@@ -1100,8 +1141,14 @@ const Stylist: React.FC = () => {
                   </div>
 
                   {editingOutfit.reasoning && (
-                    <div className="bg-slate-50 rounded-xl p-3">
-                      <p className="text-xs text-slate-600">{editingOutfit.reasoning}</p>
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles size={16} className="text-indigo-500" />
+                        <span className="text-sm font-semibold text-indigo-700">AI 穿搭分析</span>
+                      </div>
+                      <p className="text-sm text-indigo-900/80 leading-relaxed font-serif italic">
+                        "{editingOutfit.reasoning}"
+                      </p>
                     </div>
                   )}
                 </div>

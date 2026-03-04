@@ -261,22 +261,17 @@ const WardrobeGallery: React.FC = () => {
             >
               <Search size={18} />
             </button>
+            <button
+              onClick={() => setIsUploading(true)}
+              className="w-9 h-9 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 text-white flex items-center justify-center hover:shadow-lg transition-all"
+            >
+              <Plus size={20} />
+            </button>
           </div>
         </div>
       )
       }
 
-      {/* 悬浮添加按钮 (FAB) */}
-      {
-        !isUploading && !editingItem && (
-          <button
-            onClick={() => setIsUploading(true)}
-            className="fixed bottom-24 right-4 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 text-white flex items-center justify-center shadow-xl shadow-indigo-300/50 hover:scale-110 active:scale-95 transition-all"
-          >
-            <Plus size={28} />
-          </button>
-        )
-      }
 
       {/* 搜索结果 */}
       {
@@ -396,7 +391,7 @@ const WardrobeGallery: React.FC = () => {
               setEditingItem('');
             }} />
             {/* 弹窗内容 - 严格限制在上下菜单之间 */}
-            <div className="relative w-full max-w-[calc(393px-32px)] mx-4 mt-[72px] mb-[88px] max-h-[calc(852px-160px)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="relative w-full max-w-[calc(393px-32px)] mx-4 mt-[72px] mb-[88px] max-h-[calc(100dvh-160px)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-slate-100">
                 <h3 className="text-lg font-semibold text-slate-800">

@@ -7,13 +7,14 @@ import React, { useState } from 'react';
 import { useProfile } from '../src/hooks/useProfile';
 import { useToast } from '../src/context/ToastContext';
 import ImageRenderer from './ImageRenderer';
-import { Camera, User, Ruler, Plus, Check } from 'lucide-react';
+import { Camera, User, Ruler, Plus, Check, Edit } from 'lucide-react';
 
 const BodyProfile: React.FC = () => {
   const { profile, update, isLoggedIn } = useProfile();
   const { showError, showSuccess } = useToast();
   const [activeTab, setActiveTab] = useState<'details' | 'scan'>('details');
-  const [newUserName, setNewUserName] = useState("");
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+  const [tempName, setTempName] = useState("");
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, view: 'photoFront' | 'photoSide' | 'photoBack') => {
     const file = e.target.files?.[0];
@@ -53,11 +54,27 @@ const BodyProfile: React.FC = () => {
       {/* Profile Content */}
       <div className="bg-white rounded-2xl shadow-lg p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 flex items-center justify-center text-white text-2xl font-bold">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 flex items-center justify-center text-white text-2xl font-bold shrink-0">
             {profile?.name?.[0] || 'U'}
           </div>
-          <div>
-            <h3 className="text-xl font-semibold text-slate-800">{profile?.name || '默认用户'}</h3>
+          <div className="flex-1 min-w-0">
+            {activeTab === 'details' && (
+              <div className="flex items-center gap-2 group">
+                <h3 className="text-xl font-semibold text-slate-800 truncate">
+                  {profile?.name || '默认用户'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setTempName(profile?.name || "");
+                    setIsNameModalOpen(true);
+                  }}
+                  className="p-1 text-slate-400 hover:text-indigo-500 transition-colors"
+                  title="修改昵称"
+                >
+                  <Edit size={16} />
+                </button>
+              </div>
+            )}
             <p className="text-slate-500 text-sm">{isLoggedIn ? '已登录' : '本地用户'}</p>
           </div>
         </div>
@@ -119,6 +136,46 @@ const BodyProfile: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 修改昵称弹窗 */}
+      {isNameModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+            onClick={() => setIsNameModalOpen(false)}
+          />
+          <div className="relative w-full max-w-[320px] bg-white rounded-2xl shadow-2xl p-6 space-y-4 animate-scale-up">
+            <h4 className="text-lg font-bold text-slate-800">修改昵称</h4>
+            <input
+              type="text"
+              value={tempName}
+              onChange={(e) => setTempName(e.target.value)}
+              placeholder="请输入新昵称"
+              autoFocus
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+            />
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setIsNameModalOpen(false)}
+                className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-medium hover:bg-slate-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  if (tempName.trim()) {
+                    handleUpdateProfile({ name: tempName.trim() });
+                    setIsNameModalOpen(false);
+                  }
+                }}
+                className="flex-1 py-2.5 bg-indigo-500 text-white rounded-xl font-medium hover:bg-indigo-600 shadow-md shadow-indigo-200 transition-all active:scale-95"
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

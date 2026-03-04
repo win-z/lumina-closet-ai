@@ -141,28 +141,32 @@ export class DiaryEntryModel {
 
     if (existing) {
       // 更新现有记录
-      const updateData: Partial<DiaryEntry> = {};
-      if (data.weather !== undefined) updateData.weather = data.weather;
-      if (data.mood !== undefined) updateData.mood = data.mood;
-      if (data.notes !== undefined) updateData.notes = data.notes;
-      if (data.photo !== undefined) updateData.photo = data.photo;
-      if (data.clothingIds !== undefined) updateData.clothingIds = data.clothingIds;
-      if (data.outfitId !== undefined) (updateData as any).outfitId = data.outfitId;
-
-      const updated = await this.update(existing.id, userId, updateData);
+      const updated = await this.update(existing.id, userId, data);
       if (!updated) throw new Error('更新日记失败');
       return updated;
     } else {
-      // 创建新记录
-      return this.create(userId, {
-        date: data.date,
-        weather: data.weather || '',
-        mood: data.mood || '',
-        notes: data.notes || '',
-        photo: data.photo,
-        clothingIds: data.clothingIds || [],
-        outfitId: data.outfitId,
-      });
+      try {
+        // 创建新记录
+        return await this.create(userId, {
+          date: data.date,
+          weather: data.weather || '',
+          mood: data.mood || '',
+          notes: data.notes || '',
+          photo: data.photo,
+          clothingIds: data.clothingIds || [],
+          outfitId: data.outfitId,
+        });
+      } catch (error: any) {
+        // 如果并发请求导致在检查期间已有记录插入，则捕获唯一键冲突错误并转为更新
+        if (error.code === 'ER_DUP_ENTRY') {
+          const latest = await this.findByDate(userId, data.date);
+          if (latest) {
+            const updated = await this.update(latest.id, userId, data);
+            if (updated) return updated;
+          }
+        }
+        throw error;
+      }
     }
   }
 

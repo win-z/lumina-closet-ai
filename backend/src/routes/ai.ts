@@ -9,7 +9,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { ClothingItemModel, BodyProfileModel, SavedOutfitModel } from '../models';
+import { ClothingItemModel, BodyProfileModel, SavedOutfitModel, AnalysisResultModel } from '../models';
 import { aiService } from '../services/ai';
 import { virtualTryOnService } from '../services/image';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
@@ -67,17 +67,17 @@ const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiRespons
   const profile = await BodyProfileModel.findByUserId(userId);
 
   if (!profile) throw Errors.badRequest('请先完善您的身体档案');
-  
+
   // 检查是手动选择模式还是AI推荐模式
   const isManualMode = topId || bottomId || shoesId;
-  
+
   let suggestion: any;
   let top, bottom, shoes;
 
   if (isManualMode) {
     // 手动选择模式：直接使用用户选择的服装
     logger.info('手动选择模式', { topId, bottomId, shoesId });
-    
+
     top = topId ? await ClothingItemModel.findById(topId, userId) || undefined : undefined;
     bottom = bottomId ? await ClothingItemModel.findById(bottomId, userId) || undefined : undefined;
     shoes = shoesId ? await ClothingItemModel.findById(shoesId, userId) || undefined : undefined;
@@ -95,10 +95,10 @@ const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiRespons
   } else {
     // AI推荐模式：调用AI服务生成建议
     if (wardrobe.length < 2) throw Errors.badRequest('衣橱单品不足，无法生成建议');
-    
+
     logger.info('AI推荐模式', { hasCustomPrompt: !!customPrompt });
     suggestion = await aiService.suggestOutfit(wardrobe, weather || '', occasion || '', profile, customPrompt);
-    
+
     top = wardrobe.find(w => w.id === suggestion.topId);
     bottom = wardrobe.find(w => w.id === suggestion.bottomId);
     shoes = wardrobe.find(w => w.id === suggestion.shoesId);
@@ -120,7 +120,7 @@ const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiRespons
 
   if (existingOutfit?.tryonImage) {
     // 找到已保存的相同搭配，直接复用试穿图
-    logger.info('找到已保存的相同搭配，复用试穿图', { 
+    logger.info('找到已保存的相同搭配，复用试穿图', {
       outfitId: existingOutfit.id,
       dressId,
       topId: suggestion.topId,
@@ -133,9 +133,9 @@ const suggestOutfit = asyncHandler(async (req: Request, res: Response<ApiRespons
     try {
       if (top || bottom || shoes) {
         // 使用豆包API生成虚拟试穿图，传入自定义提示词
-        logger.info('开始生成虚拟试穿图', { 
+        logger.info('开始生成虚拟试穿图', {
           mode: isManualMode ? '手动选择' : 'AI推荐',
-          top: top?.name, 
+          top: top?.name,
           bottom: bottom?.name,
           shoes: shoes?.name,
           hasProfilePhoto: !!profile.photoFront,
@@ -187,6 +187,28 @@ const analyzeWardrobe = asyncHandler(async (req: Request, res: Response<ApiRespo
   if (wardrobe.length === 0) throw Errors.badRequest('衣橱为空，无法分析');
 
   const analysis = await aiService.analyzeWardrobeHealth(wardrobe);
+
+  // 获取当前的统计数据，组合成一个完整的 AnalysisResult
+  // 先从最新的结果中复制统计数据，或者重新计算（这里简单处理，先存入 AI 文本）
+  await AnalysisResultModel.create(userId, {
+    categoryStats: wardrobe.reduce((acc, item) => {
+      acc[item.category] = (acc[item.category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>),
+    colorStats: wardrobe.reduce((acc, item) => {
+      acc[item.color] = (acc[item.color] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>),
+    brandStats: {},
+    priceStats: {
+      totalValue: wardrobe.reduce((sum, item) => sum + (Number(item.price) || 0), 0),
+      averagePrice: 0,
+      maxPrice: 0,
+      minPrice: 0
+    },
+    wearStats: [],
+    aiAnalysis: analysis, // 存入真正的 Markdown 文本
+  });
 
   res.json({ success: true, message: '分析完成', data: { analysis, itemCount: wardrobe.length } });
 });

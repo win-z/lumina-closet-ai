@@ -12,7 +12,7 @@ import ImageRenderer from './ImageRenderer';
 import {
   ChevronLeft, ChevronRight, Calendar, CloudSun, Smile,
   Plus, X, BookmarkPlus, Trash2, Camera, Sparkles,
-  Sun, Cloud, CloudRain, Wind, Snowflake
+  Sun, Cloud, CloudRain, Wind, Snowflake, RefreshCw
 } from 'lucide-react';
 
 // ==================== 类型定义 ====================
@@ -99,6 +99,7 @@ const Diary: React.FC = () => {
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
   const [showOutfitSelector, setShowOutfitSelector] = useState(false);
   const [loadingOutfits, setLoadingOutfits] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // ==================== 工具函数 ====================
   const formatDate = (date: Date) => {
@@ -208,8 +209,9 @@ const Diary: React.FC = () => {
   };
 
   const handleSaveDiary = async () => {
-    if (!selectedDate) return;
+    if (!selectedDate || saving) return;
 
+    setSaving(true);
     try {
       await diaryApi.upsert({
         date: selectedDate,
@@ -235,6 +237,8 @@ const Diary: React.FC = () => {
     } catch (error) {
       console.error('保存日记失败:', error);
       showError('保存失败，请重试');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -707,9 +711,11 @@ const Diary: React.FC = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={handleSaveDiary}
-                    className="flex-1 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all"
+                    disabled={saving}
+                    className="flex-1 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    保存日记
+                    {saving && <RefreshCw size={18} className="animate-spin" />}
+                    {saving ? '正在保存...' : '保存日记'}
                   </button>
                   {currentDiary && (
                     <button

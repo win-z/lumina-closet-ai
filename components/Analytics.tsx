@@ -8,8 +8,47 @@ import { useWardrobe } from '../src/hooks/useWardrobe';
 import { useToast } from '../src/context/ToastContext';
 import { aiApi, analyticsApi, diaryApi } from '../services/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { BrainCircuit, RefreshCw, Calendar, TrendingUp, DollarSign, Palette, Tag, Shirt, BookHeart } from 'lucide-react';
+import { BrainCircuit, RefreshCw, Calendar, TrendingUp, DollarSign, Palette, Tag, Shirt, BookHeart, Lightbulb, CheckCircle2, AlertCircle, Sparkles, X } from 'lucide-react';
 import ImageRenderer from './ImageRenderer';
+
+// 简单的 Markdown 渲染组件，处理加粗和对列表进行美化
+const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => {
+  const lines = content.split('\n');
+
+  return (
+    <div className={`space-y-1.5 ${className}`}>
+      {lines.map((line, i) => {
+        // 处理列表项
+        const isListItem = line.trim().startsWith('- ') || line.trim().startsWith('* ');
+        const cleanLine = isListItem ? line.trim().substring(2) : line;
+
+        // 处理加粗 **text**
+        const parts = cleanLine.split(/(\*\*.*?\*\*)/g);
+        const renderedLine = parts.map((part, j) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+              <strong key={j} className="font-extrabold text-slate-900 mx-0.5">
+                {part.slice(2, -2)}
+              </strong>
+            );
+          }
+          return <span key={j}>{part}</span>;
+        });
+
+        if (isListItem) {
+          return (
+            <div key={i} className="flex gap-2 items-start pl-1">
+              <span className="text-slate-400 mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-current opacity-40" />
+              <p className="flex-1">{renderedLine}</p>
+            </div>
+          );
+        }
+
+        return <p key={i} className={line.trim() === '' ? 'h-2' : ''}>{renderedLine}</p>;
+      })}
+    </div>
+  );
+};
 
 interface AnalysisData {
   id: string;
@@ -41,6 +80,7 @@ const Analytics: React.FC = () => {
   const [wearStats, setWearStats] = useState<any>(null);
   const [diaryStats, setDiaryStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'brand' | 'price' | 'wear' | 'diary'>('overview');
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   // 优先读取带缓存的 summary，失败则降级到 latest
   const loadSummary = async () => {
@@ -55,7 +95,7 @@ const Analytics: React.FC = () => {
           brandStats: data.brandStats || {},
           priceStats: { totalValue: data.totalValue || 0, averagePrice: 0, maxPrice: 0, minPrice: 0 },
           wearStats: [],
-          aiAnalysis: prev?.aiAnalysis,
+          aiAnalysis: data.aiAnalysis,
           createdAt: data._cachedAt || new Date().toISOString(),
         }));
       }
@@ -147,11 +187,20 @@ const Analytics: React.FC = () => {
   const performAiAnalysis = async () => {
     setAiLoading(true);
     try {
-      await aiApi.analyze();
+      const result = await aiApi.analyze();
       showSuccess('AI 分析完成');
-      const latest = await analyticsApi.getLatest();
-      if (latest?.aiAnalysis) {
-        setAnalysis(prev => prev ? { ...prev, aiAnalysis: latest.aiAnalysis } : null);
+
+      // 直接显示结果
+      if (result?.analysis) {
+        setAnalysis(prev => prev ? { ...prev, aiAnalysis: result.analysis } : null);
+        setIsAiModalOpen(true);
+      } else {
+        // 降级：拉取最新记录
+        const latest = await analyticsApi.getLatest();
+        if (latest?.aiAnalysis) {
+          setAnalysis(prev => prev ? { ...prev, aiAnalysis: latest.aiAnalysis } : null);
+          setIsAiModalOpen(true);
+        }
       }
     } catch {
       showError('AI 分析失败，请重试');
@@ -252,10 +301,46 @@ const Analytics: React.FC = () => {
               </button>
             ))}
           </div>
-
           {/* 总览 Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
+              {/* AI 分析入口 */}
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-3xl text-white shadow-lg overflow-hidden relative">
+                <div className="relative z-10 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <BrainCircuit size={24} className="text-indigo-200" />
+                    <h3 className="text-lg font-bold">
+                      {analysis?.aiAnalysis && !analysis.aiAnalysis.startsWith('{') ? '深度报告已就绪' : '解锁您的智能衣橱报告'}
+                    </h3>
+                  </div>
+                  <p className="text-white/80 text-sm leading-relaxed">
+                    {analysis?.aiAnalysis && !analysis.aiAnalysis.startsWith('{')
+                      ? 'AI 已根据您的衣橱数据生成了专业的风格建议与健康度报告。'
+                      : '让 AI 深度分析您的穿搭风格、色系分布，并为您提供专业的购买与搭配建议。'}
+                  </p>
+                  <div className="flex gap-3 mt-2">
+                    {analysis?.aiAnalysis && !analysis.aiAnalysis.startsWith('{') && (
+                      <button
+                        onClick={() => setIsAiModalOpen(true)}
+                        className="px-4 py-2 bg-indigo-400/30 backdrop-blur-md border border-white/20 text-white rounded-xl text-sm font-bold shadow-sm hover:bg-white/20 transition-all"
+                      >
+                        查看深度报告
+                      </button>
+                    )}
+                    <button
+                      onClick={performAiAnalysis}
+                      disabled={aiLoading || wardrobe.length === 0}
+                      className="px-4 py-2 bg-white text-indigo-600 rounded-xl text-sm font-bold shadow-sm hover:scale-105 transition-transform disabled:opacity-50"
+                    >
+                      {aiLoading ? '生成中...' : (analysis?.aiAnalysis && !analysis.aiAnalysis.startsWith('{') ? '更新分析' : '立即开启')}
+                    </button>
+                  </div>
+                </div>
+                {/* 装饰性元素 */}
+                <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+                <div className="absolute bottom-[-20px] left-[-20px] w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+              </div>
+
               {/* 基础统计 */}
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm text-center">
@@ -338,20 +423,6 @@ const Analytics: React.FC = () => {
                 </div>
               )}
 
-              {/* AI 分析 */}
-              {analysis?.aiAnalysis && (
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                  <h3 className="font-bold text-sm text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <BrainCircuit size={16} />
-                    AI 分析报告
-                  </h3>
-                  <div className="prose prose-sm max-w-none text-slate-600">
-                    {analysis.aiAnalysis.split('\n').map((line, idx) => (
-                      <p key={idx} className="mb-2">{line}</p>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -591,6 +662,93 @@ const Analytics: React.FC = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* AI 深度分析弹窗 */}
+      {isAiModalOpen && analysis?.aiAnalysis && (
+        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsAiModalOpen(false)} />
+          <div className="relative w-full max-w-lg bg-slate-50 rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up">
+            {/* Modal Header */}
+            <div className="p-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">AI 衣橱深度分析</h3>
+                  <p className="text-xs text-slate-500">基于您的实时衣橱数据生成</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAiModalOpen(false)}
+                className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-6 pb-12">
+              {analysis.aiAnalysis.startsWith('{') ? (
+                <div className="text-center py-10 space-y-4">
+                  <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full mx-auto flex items-center justify-center">
+                    <AlertCircle size={32} />
+                  </div>
+                  <p className="text-slate-600 font-medium">检测到旧版缓存数据，请重新生成报告以获得最佳体验。</p>
+                  <button
+                    onClick={() => {
+                      setIsAiModalOpen(false);
+                      performAiAnalysis();
+                    }}
+                    className="px-6 py-2.5 bg-indigo-500 text-white rounded-xl font-bold shadow-md shadow-indigo-100"
+                  >
+                    立即重新生成
+                  </button>
+                </div>
+              ) : (
+                analysis.aiAnalysis.split('###').filter(s => s.trim()).map((section, idx) => {
+                  const lines = section.trim().split('\n');
+                  const title = lines[0].replace('💡', '').trim();
+                  const content = lines.slice(1).join('\n').trim();
+
+                  // 简单的结构化映射
+                  const iconMap = [<Lightbulb />, <TrendingUp />, <Palette />, <CheckCircle2 />];
+                  const colorMap = [
+                    'bg-amber-50 border-amber-200 text-amber-800',
+                    'bg-indigo-50 border-indigo-200 text-indigo-800',
+                    'bg-emerald-50 border-emerald-200 text-emerald-800',
+                    'bg-rose-50 border-rose-200 text-rose-800'
+                  ];
+
+                  return (
+                    <div key={idx} className={`rounded-3xl border-2 p-6 space-y-3 ${colorMap[idx % colorMap.length]}`}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-white/60 flex items-center justify-center shadow-sm">
+                          {React.cloneElement(iconMap[idx % iconMap.length] as React.ReactElement, { size: 18 })}
+                        </div>
+                        <h4 className="font-bold text-lg">{title}</h4>
+                      </div>
+                      <div className="text-sm leading-relaxed opacity-95 font-medium">
+                        <MarkdownRenderer content={content} />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-white border-t border-slate-100 flex justify-center shrink-0">
+              <button
+                onClick={() => setIsAiModalOpen(false)}
+                className="w-full py-3 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all active:scale-95"
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

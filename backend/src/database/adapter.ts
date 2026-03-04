@@ -28,8 +28,11 @@ class MySQLAdapter implements DatabaseAdapter {
       password: config.database.password,
       database: config.database.name,
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: 20,
       queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
+      connectTimeout: 20000, // 20秒连接超时
     });
     logger.info(`MySQL连接池已创建: ${config.database.host}:${config.database.port}/${config.database.name}`);
   }
@@ -57,9 +60,9 @@ class MySQLAdapter implements DatabaseAdapter {
   async execute(sql: string, params?: any[]): Promise<{ insertId?: number; affectedRows: number }> {
     try {
       const [result] = await this.pool.execute(sql, params);
-      return { 
-        insertId: (result as mysql.ResultSetHeader).insertId, 
-        affectedRows: (result as mysql.ResultSetHeader).affectedRows 
+      return {
+        insertId: (result as mysql.ResultSetHeader).insertId,
+        affectedRows: (result as mysql.ResultSetHeader).affectedRows
       };
     } catch (error) {
       logger.error('MySQL执行失败:', { sql: sql.substring(0, 100), error });
