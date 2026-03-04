@@ -172,7 +172,7 @@ const LoginView: React.FC<{ onLogin: (email: string, password: string, username?
       <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-rose-500 to-indigo-500 bg-clip-text text-transparent">
-            Lumina Closet
+            AI Closet
           </h1>
           <p className="text-slate-500 mt-2">AI智能衣橱助手</p>
         </div>
