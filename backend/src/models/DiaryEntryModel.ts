@@ -50,6 +50,7 @@ export class DiaryEntryModel {
     if (!row) return null;
 
     row.clothingIds = JSON.parse(row.clothingIds || '[]');
+    row.date = formatMySQLDate(row.date) as string;
     return row;
   }
 
@@ -98,6 +99,7 @@ export class DiaryEntryModel {
       ...row,
       clothingIds: JSON.parse(row.clothingIds || '[]'),
       outfitId: row.outfitId,
+      date: formatMySQLDate(row.date) as string,
     }));
   }
 
@@ -117,6 +119,7 @@ export class DiaryEntryModel {
       ...row,
       clothingIds: JSON.parse(row.clothingIds || '[]'),
       outfitId: row.outfitId,
+      date: formatMySQLDate(row.date) as string,
     };
   }
 

@@ -52,6 +52,8 @@ export class ClothingItemModel {
 
     row.tags = typeof row.tags === 'string' ? JSON.parse(row.tags || '[]') : (row.tags || []);
     row.price = row.price != null ? Number(row.price) : undefined;
+    row.purchaseDate = formatMySQLDate(row.purchaseDate);
+    row.lastWorn = formatMySQLDate(row.lastWorn);
     return row;
   }
 
@@ -92,6 +94,8 @@ export class ClothingItemModel {
       ...row,
       tags: typeof row.tags === 'string' ? JSON.parse(row.tags || '[]') : (row.tags || []),
       price: row.price != null ? Number(row.price) : undefined,
+      purchaseDate: formatMySQLDate(row.purchaseDate),
+      lastWorn: formatMySQLDate(row.lastWorn),
     }));
   }
 
@@ -115,6 +119,8 @@ export class ClothingItemModel {
       ...row,
       tags: typeof row.tags === 'string' ? JSON.parse(row.tags || '[]') : (row.tags || []),
       price: row.price != null ? Number(row.price) : undefined,
+      purchaseDate: formatMySQLDate(row.purchaseDate),
+      lastWorn: formatMySQLDate(row.lastWorn),
     }));
   }
 
