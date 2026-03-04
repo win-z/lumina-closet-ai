@@ -4,7 +4,7 @@
  */
 
 import { query, queryOne, execute } from '../database';
-import { generateId, formatDate } from '../utils/helper';
+import { generateId, formatDate, formatMySQLDate } from '../utils/helper';
 import { ClothingItem, ClothingCategory } from '../types';
 
 export class ClothingItemModel {
@@ -20,7 +20,7 @@ export class ClothingItemModel {
           id, user_id, image_front, category, name, colors,
           brand, purchase_price, purchase_date, ai_tags, seasons, occasions, last_worn_date, wear_count, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, userId, data.imageFront || null, data.category, data.name, data.color, data.brand || null, data.price || null, data.purchaseDate || null, JSON.stringify(data.tags || []), JSON.stringify([]), JSON.stringify([]), data.lastWorn || null, 0, now, now]
+      [id, userId, data.imageFront || null, data.category, data.name, data.color, data.brand || null, data.price || null, formatMySQLDate(data.purchaseDate), JSON.stringify(data.tags || []), JSON.stringify([]), JSON.stringify([]), formatMySQLDate(data.lastWorn), 0, now, now]
     );
 
     return {
@@ -148,7 +148,13 @@ export class ClothingItemModel {
           snakeCase = 'last_worn_date';
         }
         fields.push(`${snakeCase} = ?`);
-        values.push(field === 'tags' ? JSON.stringify(data[field]) : data[field]);
+        if (field === 'tags') {
+          values.push(JSON.stringify(data[field]));
+        } else if (field === 'purchaseDate' || field === 'lastWorn') {
+          values.push(formatMySQLDate(data[field] as string));
+        } else {
+          values.push(data[field]);
+        }
       }
     }
 

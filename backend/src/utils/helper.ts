@@ -12,10 +12,25 @@ export const generateId = (): string => {
 };
 
 /**
- * 格式化日期为MySQL格式
+ * 格式化日期为MySQL格式 (YYYY-MM-DD HH:mm:ss)
  */
 export const formatDate = (date: Date = new Date()): string => {
   return date.toISOString().slice(0, 19).replace('T', ' ');
+};
+
+/**
+ * 格式化输入日期为 MySQL DATE 格式 (YYYY-MM-DD)
+ * 处理 ISO 字符串、Date 对象及各种不规范输入
+ */
+export const formatMySQLDate = (dateInput: string | Date | null | undefined): string | null => {
+  if (!dateInput) return null;
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().split('T')[0];
+  } catch (e) {
+    return null;
+  }
 };
 
 /**
@@ -126,6 +141,7 @@ export const randomColor = (): string => {
 export default {
   generateId,
   formatDate,
+  formatMySQLDate,
   isValidBase64Image,
   getImageMimeType,
   cleanBase64Prefix,

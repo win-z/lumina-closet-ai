@@ -4,7 +4,7 @@
  */
 
 import { query, queryOne, execute } from '../database';
-import { generateId, formatDate } from '../utils/helper';
+import { generateId, formatDate, formatMySQLDate } from '../utils/helper';
 import { DiaryEntry } from '../types';
 
 export class DiaryEntryModel {
@@ -19,7 +19,7 @@ export class DiaryEntryModel {
       `INSERT INTO diary_entries (
         id, user_id, date, weather, mood, notes, photo, clothing_ids, outfit_id, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, userId, data.date, data.weather, data.mood, data.notes || null, data.photo || null, JSON.stringify(data.clothingIds), data.outfitId || null, now, now]
+      [id, userId, formatMySQLDate(data.date), data.weather, data.mood, data.notes || null, data.photo || null, JSON.stringify(data.clothingIds), data.outfitId || null, now, now]
     );
 
     return {
@@ -229,7 +229,13 @@ export class DiaryEntryModel {
       if (data[field] !== undefined) {
         const snakeCase = field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         fields.push(`${snakeCase} = ?`);
-        values.push(field === 'clothingIds' ? JSON.stringify(data[field]) : data[field]);
+        if (field === 'clothingIds') {
+          values.push(JSON.stringify(data[field]));
+        } else if (field === 'date') {
+          values.push(formatMySQLDate(data[field] as string));
+        } else {
+          values.push(data[field]);
+        }
       }
     }
 
