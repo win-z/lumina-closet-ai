@@ -7,8 +7,9 @@
 
 const getBaseUrl = (): string => {
   const url = import.meta.env.VITE_API_URL;
+  // 未配置时使用相对路径 '/'，兼容 Nginx 反向代理部署
   if (!url) {
-    throw new Error('[apiClient] 环境变量 VITE_API_URL 未配置，请检查 .env.local');
+    return '';
   }
   return url.replace(/\/$/, ''); // 去掉末尾斜杠
 };

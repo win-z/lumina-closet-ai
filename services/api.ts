@@ -5,10 +5,10 @@
 
 import { ClothingItem, BodyProfile } from "../types";
 
-// 从环境变量读取，不允许硬编码 IP
+// 从环境变量读取，未配置时使用空字符串（兼容 Nginx 反向代理）
 const API_BASE = (() => {
   const url = import.meta.env.VITE_API_URL;
-  if (!url) throw new Error('[api] 环境变量 VITE_API_URL 未配置');
+  if (!url) return '';
   return url.replace(/\/$/, '');
 })();
 
