@@ -122,8 +122,8 @@ logger.info('✅ AI 接口独立限流已启用 (20次/15分钟)');
 
 // ==================== 公开路由 (无需认证) ====================
 
-// API根路径
-app.use('/', indexRoutes);
+// API根路径，调整为/api避免与前端路由冲突
+app.use('/api/info', indexRoutes);
 
 // 健康检查
 app.use('/health', healthRoutes);
@@ -154,6 +154,19 @@ app.use('/api/analytics', analyticsRoutes);
 
 // AI功能
 app.use('/api/ai', aiRoutes);
+
+// ==================== 静态生成托管 (适配手机纯本地单进程运行) ====================
+// 将请求未匹配到的路径尝试去寻找前端构建好的 dist 目录
+const frontendPath = path.join(__dirname, '../../dist');
+app.use(express.static(frontendPath));
+app.get('*', (req, res, next) => {
+  // 如果是发给 API 的，但不匹配任何路由，交给 notFoundHandler 处理
+  if (req.originalUrl.startsWith('/api')) {
+    return next();
+  }
+  // 否则交回给前端 React Router 处理，实现 SPA 单页应用路由
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 
 // ==================== 404处理 ====================
 app.use(notFoundHandler);

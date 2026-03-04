@@ -288,3 +288,49 @@ TENCENT_COS_REGION=ap-guangzhou
 ## 许可证
 
 MIT
+
+---
+
+## 服务器配置（重要！请记住）
+
+### SSH 连接信息
+| 项目 | 值 |
+|---|---|
+| **公网 IP** | `101.37.159.90` |
+| **用户名** | `root` |
+| **SSH 端口** | `22` |
+| **登录方式** | 密钥登录（`id_antigravity`） |
+| **密钥路径** | `~/.ssh/id_antigravity` |
+| **备用密码** | `Aa13273956789.0`（服务器禁用了密码登录，必须用密钥） |
+
+**快捷连接命令：**
+```bash
+ssh -i ~/.ssh/id_antigravity root@101.37.159.90
+```
+
+### 宝塔面板
+- **地址**: https://101.37.159.90:14648/a2443362
+- **账号**: `rsfvne10`
+- **密码**: `ceef7ff8`
+
+### 测试账号（前端登录）
+- **邮箱**: `1075638488@qq.com`
+- **密码**: `12345678`
+
+### 项目路径（服务器上）
+- **前端 dist 文件**: `/www/wwwroot/lumina-closet/dist`
+- **后端**: `/www/wwwroot/lumina-closet/backend`
+- **Nginx 配置**: 宝塔面板管理，或 `/www/server/panel/vhost/nginx/`
+- **PM2 应用名**: `lumina-backend`
+
+### 部署规则（重要！）
+> 凡涉及服务器前后端代码变更，必须执行以下操作：
+> 1. **同步代码**（git pull 或 scp/rsync 上传）
+> 2. **前端修改**：执行 `npm run build` 重新生成 dist
+> 3. **后端修改**：执行 `pm2 restart lumina-backend`
+> 4. **Nginx 配置变更**：执行 `nginx -s reload`
+
+**一键重启命令（后端）**：
+```bash
+ssh -i /Users/zhaojianhua/github/lumina-closet-ai-main/myapp.pem root@101.37.159.90 "cd /www/wwwroot/lumina-closet/backend && pm2 restart lumina-backend"
+```

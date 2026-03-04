@@ -285,7 +285,9 @@ export class DiaryEntryModel {
     avgMood: string;
   }> {
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const endDate = month === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(month + 1).padStart(2, '0')}-01`;
 
     const statsRows = await query<{ totalEntries: number; uniqueOutfits: number }>(
       `SELECT COUNT(*) as totalEntries, COUNT(DISTINCT clothing_ids) as uniqueOutfits

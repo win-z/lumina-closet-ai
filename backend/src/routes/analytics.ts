@@ -23,7 +23,11 @@ async function computeSummary(userId: string) {
   const wardrobe = await ClothingItemModel.findByUserId(userId);
   const diaryCount = await DiaryEntryModel.countByUserId(userId);
 
-  const totalValue = wardrobe.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  const itemsWithPrice = wardrobe.filter(item => Number(item.price) > 0);
+  const totalValue = itemsWithPrice.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  const averagePrice = itemsWithPrice.length > 0 ? Math.round(totalValue / itemsWithPrice.length) : 0;
+  const maxPrice = itemsWithPrice.length > 0 ? Math.max(...itemsWithPrice.map(i => Number(i.price) || 0)) : 0;
+  const minPrice = itemsWithPrice.length > 0 ? Math.min(...itemsWithPrice.map(i => Number(i.price) || 0)) : 0;
 
   const categoryStats: Record<string, number> = {};
   wardrobe.forEach(item => {
@@ -48,6 +52,13 @@ async function computeSummary(userId: string) {
   return {
     totalItems: wardrobe.length,
     totalValue,
+    priceStats: {
+      totalValue,
+      averagePrice,
+      maxPrice,
+      minPrice,
+      itemsWithPrice: itemsWithPrice.length
+    },
     diaryCount,
     categoryStats,
     colorStats,
@@ -95,7 +106,7 @@ const getSummary = asyncHandler(async (req: Request, res: Response<ApiResponse>)
     categoryStats: data.categoryStats,
     colorStats: data.colorStats,
     brandStats: {},
-    priceStats: { totalValue: data.totalValue, averagePrice: 0, maxPrice: 0, minPrice: 0 },
+    priceStats: data.priceStats,
     wearStats: [],
     aiAnalysis: JSON.stringify(data), // 将完整 summary 序列化存入 aiAnalysis
   }).catch(() => { }); // 缓存写入失败不影响主流程
@@ -121,7 +132,7 @@ const refreshSummary = asyncHandler(async (req: Request, res: Response<ApiRespon
     categoryStats: data.categoryStats,
     colorStats: data.colorStats,
     brandStats: {},
-    priceStats: { totalValue: data.totalValue, averagePrice: 0, maxPrice: 0, minPrice: 0 },
+    priceStats: data.priceStats,
     wearStats: [],
     aiAnalysis: JSON.stringify(data), // 将完整 summary 序列化存入 aiAnalysis
   });

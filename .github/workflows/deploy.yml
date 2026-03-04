@@ -1,64 +1,53 @@
-name: Deploy to Vercel
+name: 🚀 Deploy to Server
 
 on:
   push:
-    branches:
-      - main
-      - master
-  pull_request:
-    branches:
-      - main
-      - master
+    branches: [main]
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   deploy:
+    name: Deploy Lumina Closet AI
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build project
-        run: npm run build
-        env:
-          CI: true
-      
-      - name: Deploy to Vercel (Production)
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        uses: vercel/action-deploy@v1
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: ./
-          vercel-args: '--prod'
-      
-      - name: Deploy to Vercel (Preview)
-        if: github.event_name == 'pull_request'
-        uses: vercel/action-deploy@v1
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: ./
 
-  # 可选：添加测试任务
-  # test:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '18'
-  #         cache: 'npm'
-  #     - run: npm ci
-  #     - run: npm test
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          command_timeout: 15m
+          script: |
+            set -e
+            DEPLOY_DIR="/www/wwwroot/lumina-closet"
+            REPO="https://${{ secrets.GH_TOKEN }}@github.com/win-z/lumina-closet-ai.git"
+
+            git config --global --add safe.directory $DEPLOY_DIR
+            cd $DEPLOY_DIR
+
+            echo "📥 拉取最新代码..."
+            git remote set-url origin $REPO 2>/dev/null || git remote add origin $REPO
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "📦 安装前端依赖..."
+            npm install --prefer-offline
+
+            echo "🔨 构建前端（Vite）..."
+            npm run build
+
+            echo "📦 安装后端依赖..."
+            cd backend && npm install --prefer-offline
+
+            echo "🔨 编译后端（TypeScript）..."
+            npm run build
+
+            echo "🔄 重启后端服务（PM2）..."
+            pm2 reload lumina-backend --update-env || pm2 start ecosystem.config.js
+
+            echo "✅ 部署完成！$(date '+%Y-%m-%d %H:%M:%S')"
