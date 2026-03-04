@@ -32,6 +32,8 @@ const ImageRenderer: React.FC<Props> = ({
   const touchStartTimeRef = useRef<number>(0);
   const isLongPressRef = useRef(false);
   const startPosRef = useRef({ x: 0, y: 0 });
+  // 用于防止移动端 touch 事件触发后合成 mouse 事件再次触发 onClick
+  const touchHandledRef = useRef(false);
 
   // 转换 COS URL 为 Vite 代理地址
   const getProxiedUrl = (url: string): string => {
@@ -62,14 +64,24 @@ const ImageRenderer: React.FC<Props> = ({
 
   // 处理触摸/鼠标开始
   const handleStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    const isTouch = 'touches' in e;
+    // 如果是 mouse 事件且刚刚处理过 touch 事件，忽略（避免移动端双触发）
+    if (!isTouch && touchHandledRef.current) {
+      touchHandledRef.current = false;
+      return;
+    }
+    if (isTouch) {
+      touchHandledRef.current = true;
+    }
+
     isLongPressRef.current = false;
     touchStartTimeRef.current = Date.now();
     
     // 获取点击位置
     let clientX, clientY;
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
+    if (isTouch) {
+      clientX = (e as React.TouchEvent).touches[0].clientX;
+      clientY = (e as React.TouchEvent).touches[0].clientY;
     } else {
       clientX = (e as React.MouseEvent).clientX;
       clientY = (e as React.MouseEvent).clientY;
@@ -88,6 +100,12 @@ const ImageRenderer: React.FC<Props> = ({
 
   // 处理触摸/鼠标结束
   const handleEnd = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    const isTouch = 'changedTouches' in e;
+    // 如果是 mouseLeave 或非 touch 的 mouseUp，且 touch 已处理，忽略
+    if (!isTouch && touchHandledRef.current) {
+      return;
+    }
+
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
@@ -95,9 +113,9 @@ const ImageRenderer: React.FC<Props> = ({
     
     // 获取结束位置
     let clientX, clientY;
-    if ('changedTouches' in e) {
-      clientX = e.changedTouches[0].clientX;
-      clientY = e.changedTouches[0].clientY;
+    if (isTouch) {
+      clientX = (e as React.TouchEvent).changedTouches[0].clientX;
+      clientY = (e as React.TouchEvent).changedTouches[0].clientY;
     } else {
       clientX = (e as React.MouseEvent).clientX;
       clientY = (e as React.MouseEvent).clientY;

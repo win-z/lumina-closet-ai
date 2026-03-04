@@ -162,14 +162,43 @@ const Stylist: React.FC = () => {
     }
   };
 
-  // 处理上传真实穿着照片
+  // 压缩图片：将 base64 图片压缩到指定最大尺寸和质量，避免超大图片导致 502
+  const compressImage = (base64: string, maxSize = 1200, quality = 0.8): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; }
+        } else {
+          if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = base64;
+    });
+  };
+
+  // 处理上传真实穿着照片（自动压缩以避免超大请求导致 502）
   const handleRealPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      setRealPhoto(event.target?.result as string);
+    reader.onload = async (event) => {
+      const raw = event.target?.result as string;
+      try {
+        const compressed = await compressImage(raw);
+        setRealPhoto(compressed);
+      } catch {
+        setRealPhoto(raw);
+      }
     };
     reader.readAsDataURL(file);
   };
