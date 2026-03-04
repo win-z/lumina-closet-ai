@@ -159,7 +159,7 @@ app.use('/api/ai', aiRoutes);
 // 将请求未匹配到的路径尝试去寻找前端构建好的 dist 目录
 const frontendPath = path.join(__dirname, '../../dist');
 app.use(express.static(frontendPath));
-app.get('*', (req, res, next) => {
+app.get('/{*path}', (req, res, next) => {
   // 如果是发给 API 的，但不匹配任何路由，交给 notFoundHandler 处理
   if (req.originalUrl.startsWith('/api')) {
     return next();
