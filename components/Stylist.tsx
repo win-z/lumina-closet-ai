@@ -3,12 +3,13 @@
  * 使用 hooks 管理数据
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWardrobe } from '../src/hooks/useWardrobe';
 import { useProfile } from '../src/hooks/useProfile';
 import { useDiary } from '../src/hooks/useDiary';
 import { useApp } from '../src/context/AppContext';
 import { useToast } from '../src/context/ToastContext';
+import { useWeather } from '../src/hooks/useWeather';
 import { aiApi, outfitsApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
 import {
@@ -16,7 +17,7 @@ import {
   Plus, X, BookmarkPlus, Trash2, Camera, Sparkles,
   Sun, Cloud, CloudRain, Wind, Snowflake, RefreshCw, Send,
   Shirt, Palette, Tag, Ruler, Scissors, Sparkle,
-  Edit, Upload, Bookmark
+  Edit, Upload, Bookmark, Droplets, MapPin, Thermometer
 } from 'lucide-react';
 import { ClothingCategory } from '../types';
 
@@ -79,8 +80,20 @@ const Stylist: React.FC = () => {
   const { user, loadUserData } = useApp();
   const { showSuccess, showError, showConfirm } = useToast();
 
+  // 实时天气
+  const { weather: realWeather, loading: weatherLoading, error: weatherError, refresh: refreshWeather } = useWeather();
+  // weatherText 是发给 AI 的天气字符串，自动从实时天气同步；用户也可手动编辑
+  const [weatherText, setWeatherText] = useState("晴天, 24°C");
+  const [weatherEdited, setWeatherEdited] = useState(false); // 用户是否手动改过
+
+  // 实时天气加载成功后，自动同步（除非用户手动编辑过）
+  useEffect(() => {
+    if (realWeather && !weatherEdited) {
+      setWeatherText(realWeather.summaryText);
+    }
+  }, [realWeather, weatherEdited]);
+
   const [activeTab, setActiveTab] = useState<'generate' | 'saved'>('saved');
-  const [weather, setWeather] = useState("晴天, 24°C");
   const [occasion, setOccasion] = useState("周末约会");
   const [customPrompt, setCustomPrompt] = useState(''); // AI推荐自定义输入
   const [suggestion, setSuggestion] = useState<any>(null);
@@ -283,7 +296,7 @@ const Stylist: React.FC = () => {
       // 传递手动选择的服装ID
       // 如果有连衣裙，优先使用连衣裙；否则使用上装+下装
       const result = await aiApi.outfit(
-        weather,
+        weatherText,
         occasion,
         selectedDress || selectedTops[0],
         selectedDress ? undefined : selectedBottoms[0],
@@ -312,7 +325,7 @@ const Stylist: React.FC = () => {
       await outfitsApi.save({
         name: customName || undefined,
         tags: customTags,
-        weather,
+        weather: weatherText,
         occasion,
         dressId,
         topId,
@@ -494,24 +507,98 @@ const Stylist: React.FC = () => {
 
           {/* Input Section - AI推荐模式显示自定义输入，手动模式显示天气/场合 */}
           <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
-            {/* AI推荐模式 - 自定义输入 */}
+            {/* AI推荐模式 - 天气卡片 + 自定义输入 */}
             {!manualMode && (
-              <div>
-                <label className="text-sm font-medium text-slate-600 mb-2 block">
-                  <Sparkles size={16} className="inline mr-1" /> 搭配要求（可选）
-                </label>
-                <textarea
-                  value={customPrompt}
-                  onChange={(e) => setCustomPrompt(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none"
-                  placeholder="例如：想要一套适合春天约会的清新风格搭配..."
-                  rows={3}
-                />
-                <p className="text-xs text-slate-400 mt-1">
-                  输入你的想法，AI会根据衣橱智能推荐
-                </p>
+              <div className="space-y-4">
+                {/* 实时天气卡片 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-600 mb-2 block">
+                    <CloudSun size={16} className="inline mr-1" /> 今日天气
+                  </label>
+                  {weatherLoading ? (
+                    <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 rounded-xl text-slate-400 text-sm">
+                      <RefreshCw size={14} className="animate-spin" />
+                      正在获取定位天气...
+                    </div>
+                  ) : realWeather ? (
+                    <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-100 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-3xl">{realWeather.emoji}</span>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xl font-bold text-slate-800">{realWeather.temperature}°C</span>
+                              <span className="text-sm text-slate-500">{realWeather.description}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-0.5">
+                              {realWeather.city && (
+                                <span className="flex items-center gap-0.5 text-xs text-slate-400">
+                                  <MapPin size={10} /> {realWeather.city}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-0.5 text-xs text-slate-400">
+                                <Droplets size={10} /> {realWeather.humidity}%
+                              </span>
+                              <span className="flex items-center gap-0.5 text-xs text-slate-400">
+                                <Thermometer size={10} /> 体感{realWeather.feelsLike}°C
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => { setWeatherEdited(false); refreshWeather(); }}
+                          className="p-2 text-slate-400 hover:text-sky-500 transition-colors"
+                          title="刷新天气"
+                        >
+                          <RefreshCw size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
+                      <span>{weatherError || '无法获取天气'}</span>
+                      <button onClick={refreshWeather} className="underline">重试</button>
+                    </div>
+                  )}
+                  {/* 可编辑天气描述（发给AI用） */}
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={weatherText}
+                      onChange={(e) => { setWeatherText(e.target.value); setWeatherEdited(true); }}
+                      className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:border-indigo-400 outline-none text-slate-600"
+                      placeholder="天气描述（发给AI）"
+                    />
+                    {weatherEdited && (
+                      <button
+                        onClick={() => { setWeatherEdited(false); if (realWeather) setWeatherText(realWeather.summaryText); }}
+                        className="text-xs text-slate-400 hover:text-indigo-500 whitespace-nowrap"
+                      >
+                        重置
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 搭配要求 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-600 mb-2 block">
+                    <Sparkles size={16} className="inline mr-1" /> 搭配要求（可选）
+                  </label>
+                  <textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none"
+                    placeholder="例如：想要一套适合春天约会的清新风格搭配..."
+                    rows={3}
+                  />
+                  <p className="text-xs text-slate-400 mt-1">
+                    输入你的想法，AI会根据衣橱智能推荐
+                  </p>
+                </div>
               </div>
             )}
+
 
             {/* 手动模式 - 移除了天气和场合，直接开始选择 */}
 
