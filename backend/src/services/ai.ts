@@ -242,6 +242,55 @@ ${summary}
     logger.info('衣橱分析完成');
     return response || '分析失败';
   }
+
+  async generateCapsuleWardrobe(wardrobe: ClothingItem[]): Promise<{ itemIds: string[]; reasoning: string }> {
+    logger.info('生成胶囊衣橱建议...');
+
+    const inventory = wardrobe.map(item => ({
+      id: item.id,
+      name: item.name,
+      color: item.color,
+      category: item.category,
+      tags: item.tags,
+    }));
+
+    const prompt = `作为资深极简主义时尚造型师，请从以下衣橱中挑选出10-15件最核心、最百搭的单品，构成“胶囊衣橱”。
+挑选标准：
+1. 颜色兼容性高（基础色为主，点缀色为辅）
+2. 品类覆盖全面（上装、下装、外套、鞋履、连衣裙）
+3. 单品本身具备多种场合的穿搭潜力
+
+可用衣橱:
+${JSON.stringify(inventory, null, 2)}
+
+请返回JSON格式：
+{
+  "itemIds": ["ID1", "ID2", ...],
+  "reasoning": "用Markdown格式解释你的挑选策略和搭配核心思路（200字左右）"
+}
+只返回JSON。`;
+
+    const response = await this.chatRequest({
+      model: this.textModel,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000,
+      temperature: 0.7,
+    });
+
+    try {
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    } catch (e) {
+      logger.error('解析胶囊衣橱结果失败:', e);
+    }
+
+    return {
+      itemIds: [],
+      reasoning: '生成失败，请重试',
+    };
+  }
 }
 
 export const aiService = new AiService();

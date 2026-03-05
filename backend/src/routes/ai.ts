@@ -213,9 +213,26 @@ const analyzeWardrobe = asyncHandler(async (req: Request, res: Response<ApiRespo
   res.json({ success: true, message: '分析完成', data: { analysis, itemCount: wardrobe.length } });
 });
 
+/**
+ * POST /api/ai/capsule
+ * 生成胶囊衣橱建议
+ */
+const generateCapsule = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+  // 胶囊衣橱只分析当前活跃的衣橱（不包含归档）
+  const wardrobe = await ClothingItemModel.findByUserId(userId, { includeArchived: false });
+
+  if (wardrobe.length < 5) throw Errors.badRequest('衣橱单品数量太少（需至少5件），无法生成胶囊建议');
+
+  const result = await aiService.generateCapsuleWardrobe(wardrobe);
+
+  res.json({ success: true, message: '胶囊衣橱建议已生成', data: result });
+});
+
 router.post('/auto-tag', validate(autoTagSchema, 'body'), autoTag);
 router.post('/outfit', validate(outfitSchema, 'body'), suggestOutfit);
 router.post('/try-on', validate(tryOnSchema, 'body'), virtualTryOn);
 router.post('/analyze', analyzeWardrobe);
+router.post('/capsule', generateCapsule);
 
 export default router;

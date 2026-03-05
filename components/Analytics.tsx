@@ -95,8 +95,10 @@ const Analytics: React.FC = () => {
   const [priceStats, setPriceStats] = useState<any>(null);
   const [wearStats, setWearStats] = useState<any>(null);
   const [diaryStats, setDiaryStats] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'brand' | 'price' | 'wear' | 'diary'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'brand' | 'price' | 'wear' | 'diary' | 'capsule'>('overview');
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [capsuleLoading, setCapsuleLoading] = useState(false);
+  const [capsuleData, setCapsuleData] = useState<{ itemIds: string[]; reasoning: string } | null>(null);
 
   // 优先读取带缓存的 summary，失败则降级到 latest
   const loadSummary = async () => {
@@ -225,6 +227,21 @@ const Analytics: React.FC = () => {
     }
   };
 
+  // 生成胶囊衣橱建议
+  const handleGenerateCapsule = async () => {
+    setCapsuleLoading(true);
+    try {
+      const result = await aiApi.generateCapsule();
+      setCapsuleData(result);
+      showSuccess('胶囊衣橱建议已生成');
+    } catch (err) {
+      showError('生成失败，请重试');
+      console.error(err);
+    } finally {
+      setCapsuleLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadSummary();
     loadBrandStats();
@@ -303,6 +320,7 @@ const Analytics: React.FC = () => {
               { key: 'price', label: '价格', icon: DollarSign },
               { key: 'wear', label: '穿着', icon: Shirt },
               { key: 'diary', label: '日记', icon: BookHeart },
+              { key: 'capsule', label: '胶囊', icon: Sparkles },
             ].map(tab => (
               <button
                 key={tab.key}
@@ -751,6 +769,79 @@ const Analytics: React.FC = () => {
                   <li>心情和天气的记录有助于分析穿搭与情绪的关系</li>
                 </ul>
               </div>
+            </div>
+          )}
+
+          {/* 胶囊衣橱 Tab */}
+          {activeTab === 'capsule' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-br from-violet-500 to-fuchsia-600 p-6 rounded-3xl text-white shadow-lg overflow-hidden relative">
+                <div className="relative z-10 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={24} className="text-fuchsia-200" />
+                    <h3 className="text-lg font-bold">胶囊衣橱分析</h3>
+                  </div>
+                  <p className="text-white/80 text-sm leading-relaxed">
+                    AI 将从您的衣橱中挑选出 10-15 件最核心、最百搭的单品，构建一个高效且极简的胶囊衣橱。
+                  </p>
+                  <button
+                    onClick={handleGenerateCapsule}
+                    disabled={capsuleLoading || wardrobe.length < 5}
+                    className="mt-2 px-6 py-2.5 bg-white text-violet-600 rounded-xl text-sm font-bold shadow-sm hover:scale-105 transition-transform disabled:opacity-50"
+                  >
+                    {capsuleLoading ? 'AI 正在挑选...' : '生成我的胶囊衣橱'}
+                  </button>
+                  {wardrobe.length < 5 && (
+                    <p className="text-xs text-white/60">提示：需至少 5 件单品才能执行分析</p>
+                  )}
+                </div>
+                <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+              </div>
+
+              {capsuleData && (
+                <div className="space-y-6">
+                  {/* AI 策略建议 */}
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                    <h4 className="flex items-center gap-2 font-bold text-slate-800 mb-4">
+                      <Lightbulb size={20} className="text-amber-500" />
+                      AI 核心搭配策略
+                    </h4>
+                    <MarkdownRenderer content={capsuleData.reasoning} />
+                  </div>
+
+                  {/* 核心单品展示 */}
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="flex items-center gap-2 font-bold text-slate-800">
+                        <CheckCircle2 size={20} className="text-emerald-500" />
+                        核心单品 ({capsuleData.itemIds.length})
+                      </h4>
+                    </div>
+
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                      {capsuleData.itemIds.map(id => {
+                        const item = wardrobe.find(w => w.id === id);
+                        if (!item) return null;
+                        return (
+                          <div key={id} className="space-y-1.5 group">
+                            <div className="aspect-[9/16] bg-slate-50 rounded-xl overflow-hidden shadow-sm border border-slate-50">
+                              <ImageRenderer
+                                src={item.imageFront}
+                                alt={item.name}
+                                aspectRatio="9/16"
+                                className="w-full h-full object-cover mix-blend-multiply transition-transform group-hover:scale-105"
+                              />
+                            </div>
+                            <p className="text-[10px] text-slate-500 truncate text-center px-1">
+                              {item.name}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

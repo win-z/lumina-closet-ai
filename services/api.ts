@@ -246,6 +246,9 @@ export const aiApi = {
   analyze: async () => {
     return request<{ analysis: string }>('/api/ai/analyze', { method: 'POST' });
   },
+  generateCapsule: async () => {
+    return request<{ itemIds: string[]; reasoning: string }>('/api/ai/capsule', { method: 'POST' });
+  },
 };
 
 // ==================== 数据分析API ====================
