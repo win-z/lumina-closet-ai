@@ -7,8 +7,6 @@
  */
 
 import { Router, Request, Response } from 'express';
-import https from 'https';
-import http from 'http';
 
 const router = Router();
 
@@ -59,12 +57,22 @@ async function fetchIpLocation(ip: string): Promise<{ lat: number; lon: number; 
     // 过滤本地/内网IP
     const localIps = ['127.0.0.1', '::1', 'localhost'];
     const isLocal = localIps.includes(ip) || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.');
-    const targetIp = isLocal ? '' : ip; // ip-api 不传IP时用请求方IP
-    const url = `http://ip-api.com/json/${targetIp}?fields=lat,lon,city&lang=zh-CN`;
+    const targetIp = isLocal ? '' : ip;
+    // 同时取 city（可能是小地名如"河庄"）和 regionName（省份如"浙江省"）
+    const url = `http://ip-api.com/json/${targetIp}?fields=lat,lon,city,regionName&lang=zh-CN`;
     const data = await serverFetch(url);
     if (!data.lat) throw new Error('IP定位失败');
-    return { lat: data.lat, lon: data.lon, city: data.city || '' };
+
+    // 若 city 不以常见城市后缀结尾（市/州/县/盟/区），说明是小地名，改用省份名
+    const city: string = data.city || '';
+    const regionName: string = data.regionName || '';
+    const CITY_SUFFIXES = ['市', '州', '县', '盟', '特区', '区'];
+    const isMajorCity = CITY_SUFFIXES.some(s => city.endsWith(s));
+    const displayCity = isMajorCity ? city : regionName;
+
+    return { lat: data.lat, lon: data.lon, city: displayCity };
 }
+
 
 /**
  * GET /api/weather/byip
