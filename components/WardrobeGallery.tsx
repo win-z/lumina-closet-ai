@@ -456,25 +456,32 @@ const WardrobeGallery: React.FC = () => {
                       accept="image/*"
                       onChange={(e) => handleFileChange(e)}
                       className="absolute inset-0 opacity-0 cursor-pointer"
+                      style={{ pointerEvents: bgRemoving ? 'none' : 'auto' }}
                     />
+                    {/* 抠图中：图片上的遮罩 loading */}
+                    {bgRemoving && (
+                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-3 z-10">
+                        <Loader2 size={36} className="animate-spin text-white" />
+                        <div className="text-center text-white px-4">
+                          <p className="font-semibold text-sm">正在去除背景...</p>
+                          <p className="text-xs text-white/70 mt-1">首次使用需下载模型，请耐心等待</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* 抠图按钮：上传图片后显示 */}
-                  {previewFront && !analyzing && (
+                  {previewFront && !analyzing && !bgRemoving && (
                     <button
                       type="button"
                       onClick={handleRemoveBg}
-                      disabled={bgRemoving}
-                      className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-indigo-200 text-indigo-600 text-sm font-medium bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-indigo-200 text-indigo-600 text-sm font-medium bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all"
                     >
-                      {bgRemoving ? (
-                        <><Loader2 size={14} className="animate-spin" />抠图中（首次需下载模型约5-10秒）...</>
-                      ) : (
-                        <><Scissors size={14} />自动抠图（去除背景）</>
-                      )}
+                      <Scissors size={14} />自动抠图（去除背景）
                     </button>
                   )}
                 </div>
+
 
                 {/* AI Analyzing */}
                 {analyzing && (
