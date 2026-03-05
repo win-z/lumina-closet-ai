@@ -66,8 +66,8 @@ const WardrobeGallery: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingItem, setEditingItem] = useState<string>('');
   const [analyzing, setAnalyzing] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string>('全部');
   const [previewFront, setPreviewFront] = useState<string>('');
   const [newItem, setNewItem] = useState<Partial<any>>({
     category: ClothingCategory.TOP,
@@ -199,87 +199,88 @@ const WardrobeGallery: React.FC = () => {
     }));
   };
 
-  // 搜索过滤
-  const filteredItems = searchQuery.trim()
+  // 品类 + 关键词 联合过滤
+  const isFiltered = searchQuery.trim() !== '' || activeCategory !== '全部';
+  const filteredItems = isFiltered
     ? items.filter(item => {
       const q = searchQuery.trim().toLowerCase();
-      return (
+      const matchQuery = !q || (
         item.name?.toLowerCase().includes(q) ||
         item.color?.toLowerCase().includes(q) ||
         item.brand?.toLowerCase().includes(q) ||
         item.tags?.some((t: string) => t.toLowerCase().includes(q))
       );
+      const matchCategory = activeCategory === '全部' || item.category === activeCategory;
+      return matchQuery && matchCategory;
     })
     : [];
 
-  // Group items by category
+  // 品类分组（未过滤时使用）
   const groupedItems = Object.values(ClothingCategory).reduce((acc, category) => {
     acc[category] = getByCategory(category);
     return acc;
   }, {} as Record<string, any[]>);
 
+  const CATEGORY_TABS = ['全部', ...Object.values(ClothingCategory)];
+
+
   return (
-    <div className="p-4 pb-28 space-y-6">
+    <div className="p-4 pb-28 space-y-4">
       {/* Header */}
-      {isSearching ? (
-        <div className="flex items-center gap-2 mb-6">
-          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-xl">
-            <Search size={16} className="text-slate-400 flex-shrink-0" />
-            <input
-              type="text"
-              autoFocus
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="搜索名称、颜色、品牌、标签..."
-              className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => { setIsSearching(false); setSearchQuery(''); }}
-            className="text-slate-500 text-sm font-medium px-2"
-          >
-            取消
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold font-serif text-slate-800">我的衣橱</h2>
+          <span className="bg-rose-100 text-rose-600 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">
+            {count} 件
+          </span>
+        </div>
+        <button
+          onClick={() => setIsUploading(true)}
+          className="w-9 h-9 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 text-white flex items-center justify-center hover:shadow-lg transition-all"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
+
+      {/* 搜索框 */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-xl">
+        <Search size={16} className="text-slate-400 flex-shrink-0" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="搜索名称、颜色、品牌、标签..."
+          className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600">
+            <X size={14} />
           </button>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold font-serif text-slate-800">我的衣橱</h2>
-            <span className="bg-rose-100 text-rose-600 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">
-              {count} 件单品
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsSearching(true)}
-              className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition-colors"
-            >
-              <Search size={18} />
-            </button>
-            <button
-              onClick={() => setIsUploading(true)}
-              className="w-9 h-9 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 text-white flex items-center justify-center hover:shadow-lg transition-all"
-            >
-              <Plus size={20} />
-            </button>
-          </div>
-        </div>
-      )
-      }
+        )}
+      </div>
 
-
-      {/* 搜索结果 */}
+      {/* 品类筛选 Tabs */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {CATEGORY_TABS.map(cat => (
+          <button
+            key={cat}
+            onClick={() => setActiveCategory(cat)}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${activeCategory === cat
+                ? 'bg-gradient-to-r from-rose-500 to-indigo-500 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+      {/* 过滤结果 or 分类视图 */}
       {
-        searchQuery.trim() ? (
+        isFiltered ? (
           filteredItems.length > 0 ? (
             <>
-              <p className="text-sm text-slate-500">
-                找到 <span className="font-medium text-slate-700">{filteredItems.length}</span> 件单品
+              <p className="text-xs text-slate-400">
+                找到 <span className="font-medium text-slate-600">{filteredItems.length}</span> 件
               </p>
               <div className="grid grid-cols-4 gap-3">
                 {filteredItems.map(item => (
@@ -308,11 +309,11 @@ const WardrobeGallery: React.FC = () => {
             <div className="text-center py-12 text-slate-400">
               <Search size={36} className="mx-auto mb-3 opacity-40" />
               <p>没有找到匹配的单品</p>
-              <p className="text-sm mt-1">尝试搜索名称、颜色或品牌</p>
+              <p className="text-sm mt-1">试试其他关键词或品类</p>
             </div>
           )
         ) : (
-          /* 分类视图 */
+          /* 未过滤时，分类分组显示 */
           <>
             {Object.entries(groupedItems).map(([category, categoryItems]) => (
               categoryItems.length > 0 && (
