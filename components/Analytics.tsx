@@ -531,8 +531,84 @@ const Analytics: React.FC = () => {
                   ))}
                 </div>
               </div>
+
+              {/* 性价比排行榜 */}
+              {(() => {
+                // 构建 clothingId → wearCount 映射
+                const wearMap: Record<string, number> = {};
+                (wearStats?.mostWorn || []).forEach((w: any) => {
+                  const id = w.clothingId || w.clothingItem?.id;
+                  if (id) wearMap[id] = w.wearCount ?? w.count ?? 0;
+                });
+
+                // 只计算有价格 AND 有穿着记录的单品
+                const cpwItems = wardrobe
+                  .filter(item => Number(item.price) > 0 && wearMap[item.id] > 0)
+                  .map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    price: Number(item.price),
+                    wearCount: wearMap[item.id],
+                    cpw: Number(item.price) / wearMap[item.id], // 每次成本
+                    imageFront: item.imageFront,
+                  }))
+                  .sort((a, b) => a.cpw - b.cpw);
+
+                if (cpwItems.length === 0) return null;
+
+                const bestValue = cpwItems.slice(0, 5);
+                const worstValue = [...cpwItems].reverse().slice(0, 5);
+
+                const CpwRow = ({ item, rank, good }: { key?: string; item: typeof cpwItems[0]; rank: number; good: boolean }) => (
+                  <div className="flex items-center gap-3 py-2">
+                    <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${rank <= 3 ? (good ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500') : 'bg-slate-100 text-slate-400'}`}>
+                      {rank}
+                    </span>
+                    <div className="w-8 h-10 rounded overflow-hidden bg-slate-50 flex-shrink-0">
+                      {item.imageFront && <img src={item.imageFront} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-700 truncate">{item.name}</p>
+                      <p className="text-xs text-slate-400">¥{item.price} ÷ {item.wearCount}次</p>
+                    </div>
+                    <div className={`text-right flex-shrink-0 ${good ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <p className="text-base font-bold">¥{item.cpw.toFixed(1)}</p>
+                      <p className="text-xs">每次</p>
+                    </div>
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-4">
+                    {/* 最划算 */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                      <div className="px-5 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-slate-100">
+                        <h3 className="font-bold text-sm text-emerald-700">💚 最划算单品</h3>
+                        <p className="text-xs text-emerald-500 mt-0.5">价格 ÷ 穿着次数，越低越值</p>
+                      </div>
+                      <div className="px-5 divide-y divide-slate-50">
+                        {bestValue.map((item, i) => <CpwRow key={item.id} item={item} rank={i + 1} good={true} />)}
+                      </div>
+                    </div>
+
+                    {/* 最浪费 */}
+                    {worstValue.length > 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="px-5 py-3 bg-gradient-to-r from-rose-50 to-orange-50 border-b border-slate-100">
+                          <h3 className="font-bold text-sm text-rose-600">🔴 单次成本最高</h3>
+                          <p className="text-xs text-rose-400 mt-0.5">建议多穿来摊薄成本</p>
+                        </div>
+                        <div className="px-5 divide-y divide-slate-50">
+                          {worstValue.map((item, i) => <CpwRow key={item.id} item={item} rank={i + 1} good={false} />)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
+
 
           {/* 穿着 Tab */}
           {activeTab === 'wear' && wearStats && (
