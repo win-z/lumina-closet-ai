@@ -14,14 +14,14 @@ interface Props extends React.ImgHTMLAttributes<HTMLImageElement> {
   onClick?: () => void;
 }
 
-const ImageRenderer: React.FC<Props> = ({ 
-  src, 
-  className, 
-  fallbackText, 
+const ImageRenderer: React.FC<Props> = ({
+  src,
+  className,
+  fallbackText,
   alt,
   aspectRatio = '9/16',
   onClick,
-  ...props 
+  ...props
 }) => {
   const [hasError, setHasError] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -76,7 +76,7 @@ const ImageRenderer: React.FC<Props> = ({
 
     isLongPressRef.current = false;
     touchStartTimeRef.current = Date.now();
-    
+
     // 获取点击位置
     let clientX, clientY;
     if (isTouch) {
@@ -86,10 +86,10 @@ const ImageRenderer: React.FC<Props> = ({
       clientX = (e as React.MouseEvent).clientX;
       clientY = (e as React.MouseEvent).clientY;
     }
-    
+
     // 记录起始位置
     startPosRef.current = { x: clientX, y: clientY };
-    
+
     // 长按检测（600ms）
     longPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true;
@@ -101,8 +101,9 @@ const ImageRenderer: React.FC<Props> = ({
   // 处理触摸/鼠标结束
   const handleEnd = useCallback((e: React.TouchEvent | React.MouseEvent) => {
     const isTouch = 'changedTouches' in e;
-    // 如果是 mouseLeave 或非 touch 的 mouseUp，且 touch 已处理，忽略
+    // 如果是 mouseLeave 或非 touch 的 mouseUp，且 touch 已处理，忽略（同时重置标志）
     if (!isTouch && touchHandledRef.current) {
+      touchHandledRef.current = false;
       return;
     }
 
@@ -110,7 +111,7 @@ const ImageRenderer: React.FC<Props> = ({
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
-    
+
     // 获取结束位置
     let clientX, clientY;
     if (isTouch) {
@@ -120,17 +121,17 @@ const ImageRenderer: React.FC<Props> = ({
       clientX = (e as React.MouseEvent).clientX;
       clientY = (e as React.MouseEvent).clientY;
     }
-    
+
     // 计算移动距离
     const deltaX = Math.abs(clientX - startPosRef.current.x);
     const deltaY = Math.abs(clientY - startPosRef.current.y);
     const movedDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    
+
     // 如果不是长按且移动距离小于10像素，则触发点击事件
     if (!isLongPressRef.current && movedDistance < 10 && onClick) {
       onClick();
     }
-    
+
     isLongPressRef.current = false;
   }, [onClick]);
 
@@ -180,7 +181,7 @@ const ImageRenderer: React.FC<Props> = ({
 
   return (
     <>
-      <div 
+      <div
         className={`relative overflow-hidden ${getAspectRatioClass()} ${className} ${onClick ? 'cursor-pointer' : ''}`}
         onMouseDown={handleStart}
         onMouseUp={handleEnd}
@@ -195,24 +196,24 @@ const ImageRenderer: React.FC<Props> = ({
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-slate-400"></div>
           </div>
         )}
-        <img 
-          src={proxiedSrc} 
-          alt={alt || '图片'} 
+        <img
+          src={proxiedSrc}
+          alt={alt || '图片'}
           className={`w-full h-full object-cover ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300 select-none`}
-          {...props} 
+          {...props}
           onLoad={() => setIsLoading(false)}
           onError={(e) => {
             console.error('[ImageRenderer] 图片加载失败:', proxiedSrc);
             setHasError(true);
             setIsLoading(false);
-          }} 
+          }}
           draggable={false}
         />
       </div>
 
       {/* 长按操作菜单 */}
       {showMenu && (
-        <div 
+        <div
           className="fixed z-[150] bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden"
           style={{
             left: Math.min(menuPosition.x, window.innerWidth - 160),
@@ -240,8 +241,8 @@ const ImageRenderer: React.FC<Props> = ({
 
       {/* 点击外部关闭菜单 */}
       {showMenu && (
-        <div 
-          className="fixed inset-0 z-[140]" 
+        <div
+          className="fixed inset-0 z-[140]"
           onClick={() => setShowMenu(false)}
         />
       )}
