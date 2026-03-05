@@ -52,6 +52,7 @@ import outfitsRoutes from './routes/outfits';
 import analyticsRoutes from './routes/analytics';
 import aiRoutes from './routes/ai';
 import healthRoutes from './routes/health';
+import weatherRoutes from './routes/weather';
 
 
 // ==================== 创建Express应用 ====================
@@ -130,6 +131,9 @@ app.use('/health', healthRoutes);
 
 // 认证路由
 app.use('/api/auth', authRoutes);
+
+// 天气代理（公开，无需认证）
+app.use('/api/weather', weatherRoutes);
 
 // ==================== 受保护路由 (需要JWT认证) ====================
 
