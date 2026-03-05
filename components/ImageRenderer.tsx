@@ -28,12 +28,11 @@ const ImageRenderer: React.FC<Props> = ({
   const [viewerOpen, setViewerOpen] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+
+  // Touch 状态
+  const touchStartPosRef = useRef({ x: 0, y: 0 });
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const touchStartTimeRef = useRef<number>(0);
   const isLongPressRef = useRef(false);
-  const startPosRef = useRef({ x: 0, y: 0 });
-  // 用于防止移动端 touch 事件触发后合成 mouse 事件再次触发 onClick
-  const touchHandledRef = useRef(false);
 
   // 转换 COS URL 为 Vite 代理地址
   const getProxiedUrl = (url: string): string => {
@@ -50,98 +49,94 @@ const ImageRenderer: React.FC<Props> = ({
   // 获取aspect-ratio样式
   const getAspectRatioClass = () => {
     switch (aspectRatio) {
-      case '9/16':
-        return 'aspect-[9/16]';
-      case '3/4':
-        return 'aspect-[3/4]';
-      case '1/1':
-        return 'aspect-square';
-      case 'auto':
-      default:
-        return '';
+      case '9/16': return 'aspect-[9/16]';
+      case '3/4': return 'aspect-[3/4]';
+      case '1/1': return 'aspect-square';
+      default: return '';
     }
   };
 
-  // 处理触摸/鼠标开始
-  const handleStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    const isTouch = 'touches' in e;
-    // 如果是 mouse 事件且刚刚处理过 touch 事件，忽略（避免移动端双触发）
-    if (!isTouch && touchHandledRef.current) {
-      touchHandledRef.current = false;
-      return;
-    }
-    if (isTouch) {
-      touchHandledRef.current = true;
-    }
-
+  // ── 移动端：touch 事件独立处理，完全不依赖 mouse 事件 ───────────────
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
     isLongPressRef.current = false;
-    touchStartTimeRef.current = Date.now();
 
-    // 获取点击位置
-    let clientX, clientY;
-    if (isTouch) {
-      clientX = (e as React.TouchEvent).touches[0].clientX;
-      clientY = (e as React.TouchEvent).touches[0].clientY;
-    } else {
-      clientX = (e as React.MouseEvent).clientX;
-      clientY = (e as React.MouseEvent).clientY;
-    }
-
-    // 记录起始位置
-    startPosRef.current = { x: clientX, y: clientY };
-
-    // 长按检测（600ms）
     longPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true;
-      setMenuPosition({ x: clientX, y: clientY });
+      setMenuPosition({ x: touch.clientX, y: touch.clientY });
       setShowMenu(true);
     }, 600);
   }, []);
 
-  // 处理触摸/鼠标结束
-  const handleEnd = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    const isTouch = 'changedTouches' in e;
-    // 如果是 mouseLeave 或非 touch 的 mouseUp，且 touch 已处理，忽略（同时重置标志）
-    if (!isTouch && touchHandledRef.current) {
-      touchHandledRef.current = false;
-      return;
-    }
-
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-
-    // 获取结束位置
-    let clientX, clientY;
-    if (isTouch) {
-      clientX = (e as React.TouchEvent).changedTouches[0].clientX;
-      clientY = (e as React.TouchEvent).changedTouches[0].clientY;
-    } else {
-      clientX = (e as React.MouseEvent).clientX;
-      clientY = (e as React.MouseEvent).clientY;
-    }
-
-    // 计算移动距离
-    const deltaX = Math.abs(clientX - startPosRef.current.x);
-    const deltaY = Math.abs(clientY - startPosRef.current.y);
-    const movedDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-    // 如果不是长按且移动距离小于10像素，则触发点击事件
-    if (!isLongPressRef.current && movedDistance < 10 && onClick) {
-      onClick();
-    }
-
-    isLongPressRef.current = false;
-  }, [onClick]);
-
-  // 处理触摸/鼠标移动（取消长按）
-  const handleMove = useCallback(() => {
+  const handleTouchMove = useCallback(() => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
   }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    if (isLongPressRef.current) {
+      isLongPressRef.current = false;
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStartPosRef.current.x;
+    const deltaY = touch.clientY - touchStartPosRef.current.y;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    if (distance < 10 && onClick) {
+      // 阻止后续合成的 click 事件，避免在桌面端模拟器里双触发
+      e.preventDefault();
+      onClick();
+    }
+    isLongPressRef.current = false;
+  }, [onClick]);
+
+  // ── 桌面端：用标准 onClick，鼠标长按检测 ────────────────────────────
+  const mouseDownPosRef = useRef({ x: 0, y: 0 });
+  const mouseMovedRef = useRef(false);
+  const mouseLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+    mouseMovedRef.current = false;
+
+    mouseLongPressTimerRef.current = setTimeout(() => {
+      if (!mouseMovedRef.current) {
+        setMenuPosition({ x: e.clientX, y: e.clientY });
+        setShowMenu(true);
+      }
+    }, 600);
+  }, []);
+
+  const handleMouseMove = useCallback(() => {
+    mouseMovedRef.current = true;
+    if (mouseLongPressTimerRef.current) {
+      clearTimeout(mouseLongPressTimerRef.current);
+      mouseLongPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    if (mouseLongPressTimerRef.current) {
+      clearTimeout(mouseLongPressTimerRef.current);
+      mouseLongPressTimerRef.current = null;
+    }
+  }, []);
+
+  // 桌面端点击：长按菜单弹出时不触发 onClick
+  const handleDesktopClick = useCallback(() => {
+    if (showMenu || mouseMovedRef.current) return;
+    if (onClick) onClick();
+  }, [onClick, showMenu]);
 
   // 查看大图
   const handleViewImage = () => {
@@ -183,13 +178,13 @@ const ImageRenderer: React.FC<Props> = ({
     <>
       <div
         className={`relative overflow-hidden ${getAspectRatioClass()} ${className} ${onClick ? 'cursor-pointer' : ''}`}
-        onMouseDown={handleStart}
-        onMouseUp={handleEnd}
-        onMouseMove={handleMove}
-        onMouseLeave={handleEnd}
-        onTouchStart={handleStart}
-        onTouchEnd={handleEnd}
-        onTouchMove={handleMove}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onClick={handleDesktopClick}
       >
         {isLoading && (
           <div className="absolute inset-0 bg-slate-50 flex items-center justify-center">

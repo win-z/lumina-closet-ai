@@ -3,11 +3,14 @@
  * 使用 useProfile hook 管理用户档案
  */
 
+declare const __BUILD_TIME__: string;
+declare const __APP_VERSION__: string;
+
 import React, { useState } from 'react';
 import { useProfile } from '../src/hooks/useProfile';
 import { useToast } from '../src/context/ToastContext';
 import ImageRenderer from './ImageRenderer';
-import { Camera, User, Ruler, Plus, Check, Edit } from 'lucide-react';
+import { Camera, User, Ruler, Edit, Info } from 'lucide-react';
 
 const BodyProfile: React.FC = () => {
   const { profile, update, isLoggedIn } = useProfile();
@@ -134,6 +137,23 @@ const BodyProfile: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* 版本信息 */}
+      <div className="mt-2 bg-white/60 rounded-2xl p-4 flex items-start gap-3 border border-slate-100">
+        <Info size={16} className="text-slate-300 mt-0.5 shrink-0" />
+        <div className="space-y-0.5">
+          <p className="text-xs font-medium text-slate-400">应用版本</p>
+          <p className="text-xs text-slate-500 font-mono">v{__APP_VERSION__}</p>
+          <p className="text-xs text-slate-400">
+            构建时间：{new Date(__BUILD_TIME__).toLocaleString('zh-CN', {
+              timeZone: 'Asia/Shanghai',
+              year: 'numeric', month: '2-digit', day: '2-digit',
+              hour: '2-digit', minute: '2-digit', second: '2-digit',
+              hour12: false
+            })}
+          </p>
         </div>
       </div>
 
