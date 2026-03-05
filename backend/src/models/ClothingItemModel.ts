@@ -37,7 +37,7 @@ export class ClothingItemModel {
   static async findById(id: string, userId?: string): Promise<ClothingItem | null> {
     let queryStr = `SELECT id, image_front as imageFront,
             category, name, colors as color, brand, purchase_price as price, purchase_date as purchaseDate,
-            ai_tags as tags, last_worn_date as lastWorn, created_at as createdAt, updated_at as updatedAt
+            ai_tags as tags, last_worn_date as lastWorn, is_archived as isArchived, created_at as createdAt, updated_at as updatedAt
      FROM clothing_items
      WHERE id = ?`;
     const params: unknown[] = [id];
@@ -54,6 +54,7 @@ export class ClothingItemModel {
     row.price = row.price != null ? Number(row.price) : undefined;
     row.purchaseDate = formatMySQLDate(row.purchaseDate);
     row.lastWorn = formatMySQLDate(row.lastWorn);
+    row.isArchived = !!row.isArchived;
     return row;
   }
 
@@ -62,15 +63,21 @@ export class ClothingItemModel {
    */
   static async findByUserId(userId: string, options?: {
     category?: ClothingCategory;
+    includeArchived?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<ClothingItem[]> {
     let queryStr = `SELECT id, image_front as imageFront,
            category, name, colors as color, brand, purchase_price as price, purchase_date as purchaseDate,
-           ai_tags as tags, last_worn_date as lastWorn, created_at as createdAt, updated_at as updatedAt
+           ai_tags as tags, last_worn_date as lastWorn, is_archived as isArchived, created_at as createdAt, updated_at as updatedAt
     FROM clothing_items
     WHERE user_id = ?`;
     const params: unknown[] = [userId];
+
+    // 默认只返回未归档的单品
+    if (!options?.includeArchived) {
+      queryStr += ' AND is_archived = 0';
+    }
 
     if (options?.category) {
       queryStr += ' AND category = ?';
@@ -96,6 +103,7 @@ export class ClothingItemModel {
       price: row.price != null ? Number(row.price) : undefined,
       purchaseDate: formatMySQLDate(row.purchaseDate),
       lastWorn: formatMySQLDate(row.lastWorn),
+      isArchived: !!row.isArchived,
     }));
   }
 
@@ -109,7 +117,7 @@ export class ClothingItemModel {
     const rows = await query<any>(
       `SELECT id, user_id as userId, image_front as imageFront,
               category, name, colors as color, brand, purchase_price as price, purchase_date as purchaseDate,
-              ai_tags as tags, last_worn_date as lastWorn, created_at as createdAt, updated_at as updatedAt
+              ai_tags as tags, last_worn_date as lastWorn, is_archived as isArchived, created_at as createdAt, updated_at as updatedAt
        FROM clothing_items
        WHERE id IN (${placeholders})`,
       ids
@@ -121,6 +129,7 @@ export class ClothingItemModel {
       price: row.price != null ? Number(row.price) : undefined,
       purchaseDate: formatMySQLDate(row.purchaseDate),
       lastWorn: formatMySQLDate(row.lastWorn),
+      isArchived: !!row.isArchived,
     }));
   }
 
@@ -202,6 +211,17 @@ export class ClothingItemModel {
    */
   static async updateLastWorn(id: string, userId: string, date: string): Promise<void> {
     await execute('UPDATE clothing_items SET last_worn_date = ?, updated_at = ? WHERE id = ? AND user_id = ?', [date, formatDate(), id, userId]);
+  }
+
+  /**
+   * 归档 / 取消归档单品
+   */
+  static async setArchived(id: string, userId: string, archived: boolean): Promise<boolean> {
+    const result = await execute(
+      'UPDATE clothing_items SET is_archived = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+      [archived ? 1 : 0, formatDate(), id, userId]
+    );
+    return result.affectedRows > 0;
   }
 }
 

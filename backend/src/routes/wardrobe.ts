@@ -23,13 +23,15 @@ const updateItemSchema = clothingItemSchema.partial();
  */
 const listWardrobe = asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
-  const { category, page, limit } = req.query as { category?: string; page?: string; limit?: string };
+  const { category, page, limit, archived } = req.query as { category?: string; page?: string; limit?: string; archived?: string };
 
   const pageNum = Math.max(1, parseInt(page || '1', 10));
-  const limitNum = Math.min(100, Math.max(1, parseInt(limit || '20', 10)));
+  const limitNum = Math.min(200, Math.max(1, parseInt(limit || '200', 10)));
+  const includeArchived = archived === 'true';
 
   const items = await ClothingItemModel.findByUserId(userId, {
     category: category as ClothingCategory,
+    includeArchived,
     limit: limitNum,
     offset: (pageNum - 1) * limitNum
   });
@@ -175,11 +177,32 @@ const markAsWorn = asyncHandler(async (req: Request, res: Response<ApiResponse>)
   });
 });
 
+/**
+ * PATCH /api/wardrobe/:id/archive
+ * 归档或取消归档单品
+ * body: { archived: boolean }
+ */
+const archiveItem = asyncHandler(async (req: Request, res: Response<ApiResponse>) => {
+  const userId = req.user!.userId;
+  const id = req.params.id as string;
+  const archived = req.body.archived === true;
+
+  const ok = await ClothingItemModel.setArchived(id, userId, archived);
+  if (!ok) throw Errors.notFound('单品不存在');
+
+  res.json({
+    success: true,
+    message: archived ? '已归档到收纳箐' : '已返回衣橱',
+    data: { id, archived },
+  });
+});
+
 router.get('/', listWardrobe);
 router.post('/', validate(createItemSchema, 'body'), createItem);
 router.get('/:id', validate(uuidSchema, 'params'), getItem);
 router.put('/:id', validate(uuidSchema, 'params'), validate(updateItemSchema, 'body'), updateItem);
 router.delete('/:id', validate(uuidSchema, 'params'), deleteItem);
 router.post('/:id/wear', validate(uuidSchema, 'params'), markAsWorn);
+router.patch('/:id/archive', validate(uuidSchema, 'params'), archiveItem);
 
 export default router;

@@ -10,7 +10,7 @@ import { useToast } from '../src/context/ToastContext';
 import { aiApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
 import BrandSelect from '../src/components/BrandSelect';
-import { Camera, Plus, X, Trash2, Search, ChevronDown, Loader2, Scissors } from 'lucide-react';
+import { Camera, Plus, X, Trash2, Search, ChevronDown, Loader2, Scissors, Archive, ArchiveRestore } from 'lucide-react';
 
 const COMMON_TAGS = ["休闲", "商务", "运动", "复古", "极简", "约会", "度假", "春", "夏", "秋", "冬"];
 
@@ -59,7 +59,7 @@ const resizeImage = (file: File): Promise<string> => {
 const CATEGORY_PAGE_SIZE = 8; // 每个品类默认展示数量
 
 const WardrobeGallery: React.FC = () => {
-  const { items, add, count, getByCategory, update, remove, getById } = useWardrobe();
+  const { items, add, count, getByCategory, update, remove, getById, archive } = useWardrobe();
   const { showError, showSuccess, showConfirm } = useToast();
 
   const [isUploading, setIsUploading] = useState(false);
@@ -67,9 +67,10 @@ const WardrobeGallery: React.FC = () => {
   const [editingItem, setEditingItem] = useState<string>('');
   const [analyzing, setAnalyzing] = useState(false);
   const [bgRemoving, setBgRemoving] = useState(false);
-  const [originalPreview, setOriginalPreview] = useState<string>(''); // 保留原图
+  const [originalPreview, setOriginalPreview] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('全部');
+  const [showArchived, setShowArchived] = useState(false); // 是否显示收纳中的衣物
   const [previewFront, setPreviewFront] = useState<string>('');
   const [newItem, setNewItem] = useState<Partial<any>>({
     category: ClothingCategory.TOP,
@@ -227,10 +228,13 @@ const WardrobeGallery: React.FC = () => {
     }));
   };
 
-  // 品类 + 关键词 联合过滤
+  // 归档过滤：根据 showArchived 决定基础数据集
+  const baseItems = items.filter((item: any) => showArchived ? !!item.isArchived : !item.isArchived);
+
+  // 品类 + 关键词 联合过滤（基于过滤后的 baseItems）
   const isFiltered = searchQuery.trim() !== '' || activeCategory !== '全部';
   const filteredItems = isFiltered
-    ? items.filter(item => {
+    ? baseItems.filter((item: any) => {
       const q = searchQuery.trim().toLowerCase();
       const matchQuery = !q || (
         item.name?.toLowerCase().includes(q) ||
@@ -243,13 +247,24 @@ const WardrobeGallery: React.FC = () => {
     })
     : [];
 
-  // 品类分组（未过滤时使用）
+  // 品类分组（未过滤时使用 baseItems）
   const groupedItems = Object.values(ClothingCategory).reduce((acc, category) => {
-    acc[category] = getByCategory(category);
+    acc[category] = baseItems.filter((item: any) => item.category === category);
     return acc;
   }, {} as Record<string, any[]>);
 
   const CATEGORY_TABS = ['全部', ...Object.values(ClothingCategory)];
+
+  const archivedCount = items.filter((item: any) => !!item.isArchived).length;
+
+  const handleArchive = async (id: string, archived: boolean) => {
+    try {
+      await archive(id, archived);
+      showSuccess(archived ? '已归档到收纳箐' : '已返回衣橱');
+    } catch {
+      showError('操作失败，请重试');
+    }
+  };
 
 
   return (
@@ -259,15 +274,28 @@ const WardrobeGallery: React.FC = () => {
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold font-serif text-slate-800">我的衣橱</h2>
           <span className="bg-rose-100 text-rose-600 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">
-            {count} 件
+            {showArchived ? archivedCount : (count - archivedCount)} 件
           </span>
         </div>
-        <button
-          onClick={() => setIsUploading(true)}
-          className="w-9 h-9 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 text-white flex items-center justify-center hover:shadow-lg transition-all"
-        >
-          <Plus size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 收纳箐咋关 */}
+          <button
+            onClick={() => { setShowArchived(v => !v); setActiveCategory('全部'); setSearchQuery(''); }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${showArchived
+              ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
+              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+          >
+            {showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+            {showArchived ? '返回衣橱' : `收纳箐${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
+          </button>
+          <button
+            onClick={() => setIsUploading(true)}
+            className="w-9 h-9 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 text-white flex items-center justify-center hover:shadow-lg transition-all"
+          >
+            <Plus size={20} />
+          </button>
+        </div>
       </div>
 
       {/* 搜索框 */}
@@ -360,6 +388,13 @@ const WardrobeGallery: React.FC = () => {
                             className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
                           >
                             <Trash2 size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleArchive(item.id, !item.isArchived); }}
+                            className={`absolute top-1 left-1 w-6 h-6 ${item.isArchived ? 'bg-emerald-500' : 'bg-violet-500'} text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10`}
+                            title={item.isArchived ? '取出收纳箱' : '放入收纳箱'}
+                          >
+                            {item.isArchived ? <ArchiveRestore size={12} /> : <Archive size={12} />}
                           </button>
                           <ImageRenderer
                             src={item.imageFront}

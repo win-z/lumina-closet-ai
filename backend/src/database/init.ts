@@ -114,32 +114,32 @@ async function fixMissingColumns() {
     // 获取当前数据库名
     const dbResult = await query<{ DATABASE: string }>('SELECT DATABASE()');
     const dbName = dbResult[0]?.DATABASE;
-    
+
     // 检查 saved_outfits 表的字段
     const savedOutfitColumns = await query<{ column_name: string }>(`
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_schema = ? AND table_name = 'saved_outfits'
     `, [dbName]);
-    
+
     const savedOutfitColumnNames = savedOutfitColumns.map(c => c.column_name);
-    
+
     // 逐个添加缺失的字段
     if (!savedOutfitColumnNames.includes('dress_id')) {
       logger.info('添加 dress_id 字段...');
       await execute(`ALTER TABLE saved_outfits ADD COLUMN dress_id VARCHAR(36) DEFAULT NULL AFTER occasion`);
     }
-    
+
     if (!savedOutfitColumnNames.includes('top_id')) {
       logger.info('添加 top_id 字段...');
       await execute(`ALTER TABLE saved_outfits ADD COLUMN top_id VARCHAR(36) DEFAULT NULL AFTER dress_id`);
     }
-    
+
     if (!savedOutfitColumnNames.includes('bottom_id')) {
       logger.info('添加 bottom_id 字段...');
       await execute(`ALTER TABLE saved_outfits ADD COLUMN bottom_id VARCHAR(36) DEFAULT NULL AFTER top_id`);
     }
-    
+
     if (!savedOutfitColumnNames.includes('shoes_id')) {
       logger.info('添加 shoes_id 字段...');
       await execute(`ALTER TABLE saved_outfits ADD COLUMN shoes_id VARCHAR(36) DEFAULT NULL AFTER bottom_id`);
@@ -151,36 +151,36 @@ async function fixMissingColumns() {
       FROM information_schema.columns 
       WHERE table_schema = ? AND table_name = 'diary_entries'
     `, [dbName]);
-    
+
     const diaryColumnNames = diaryColumns.map(c => c.column_name);
-    
+
     if (!diaryColumnNames.includes('outfit_id')) {
       logger.info('添加 outfit_id 字段到 diary_entries...');
       await execute(`ALTER TABLE diary_entries ADD COLUMN outfit_id VARCHAR(36) DEFAULT NULL AFTER photo`);
     }
-    
+
     // 修复 photo 字段长度为 LONGTEXT
     const photoColumn = await query<{ DATA_TYPE: string }>(`
       SELECT DATA_TYPE 
       FROM information_schema.columns 
       WHERE table_schema = ? AND table_name = 'diary_entries' AND column_name = 'photo'
     `, [dbName]);
-    
+
     if (photoColumn.length > 0 && photoColumn[0].DATA_TYPE !== 'longtext') {
       logger.info('修复 photo 字段长度为 LONGTEXT...');
       await execute(`ALTER TABLE diary_entries MODIFY COLUMN photo LONGTEXT DEFAULT NULL`);
       logger.info('photo 字段修复完成');
     }
-    
+
     // 检查并添加索引
     const diaryIndexes = await query<{ INDEX_NAME: string }>(`
       SELECT INDEX_NAME 
       FROM information_schema.STATISTICS 
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'diary_entries'
     `, [dbName]);
-    
+
     const indexNames = diaryIndexes.map(i => i.INDEX_NAME);
-    
+
     if (!indexNames.includes('uk_user_date')) {
       try {
         await execute(`ALTER TABLE diary_entries ADD UNIQUE KEY uk_user_date (user_id, date)`);
@@ -189,7 +189,7 @@ async function fixMissingColumns() {
         logger.warn('唯一索引添加失败（可能已存在或数据冲突）');
       }
     }
-    
+
     if (!indexNames.includes('idx_date_range')) {
       try {
         await execute(`ALTER TABLE diary_entries ADD INDEX idx_date_range (user_id, date, created_at)`);
@@ -198,7 +198,7 @@ async function fixMissingColumns() {
         logger.warn('日期范围索引添加失败');
       }
     }
-    
+
     if (!indexNames.includes('idx_outfit')) {
       try {
         await execute(`ALTER TABLE diary_entries ADD INDEX idx_outfit (outfit_id)`);
@@ -207,7 +207,23 @@ async function fixMissingColumns() {
         logger.warn('outfit索引添加失败');
       }
     }
-    
+
+    // ==================== clothing_items 表 ====================
+    const clothingColumns = await query<{ column_name: string }>(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_schema = ? AND table_name = 'clothing_items'
+    `, [dbName]);
+
+    const clothingColumnNames = clothingColumns.map(c => c.column_name);
+
+    if (!clothingColumnNames.includes('is_archived')) {
+      logger.info('添加 is_archived 字段到 clothing_items...');
+      await execute(`ALTER TABLE clothing_items ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0 AFTER wear_count`);
+      await execute(`ALTER TABLE clothing_items ADD INDEX idx_archived (user_id, is_archived)`);
+      logger.info('is_archived 字段添加成功');
+    }
+
     logger.info('字段修复完成');
   } catch (error) {
     logger.error('修复字段失败:', error);
@@ -215,3 +231,4 @@ async function fixMissingColumns() {
 }
 
 export default initDatabase;
+

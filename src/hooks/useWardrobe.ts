@@ -127,6 +127,33 @@ export const useWardrobe = () => {
     }
   }, [setUser]);
 
+  const archive = useCallback(async (id: string, archived: boolean) => {
+    // 乐观 UI：从衣橱列表中隐藏/恢复归档项
+    setUser(prev => {
+      if (!prev) return null;
+      const newWardrobe = prev.wardrobe.map(w =>
+        w.id === id ? { ...w, isArchived: archived } : w
+      );
+      import('../utils/db').then(({ db, CACHE_KEYS }) => db.set(CACHE_KEYS.WARDROBE, newWardrobe));
+      return { ...prev, wardrobe: newWardrobe };
+    });
+
+    try {
+      await apiClient.patch<any>(`/api/wardrobe/${id}/archive`, { archived });
+    } catch (error) {
+      // 失败回滚
+      setUser(prev => {
+        if (!prev) return null;
+        const newWardrobe = prev.wardrobe.map(w =>
+          w.id === id ? { ...w, isArchived: !archived } : w
+        );
+        import('../utils/db').then(({ db, CACHE_KEYS }) => db.set(CACHE_KEYS.WARDROBE, newWardrobe));
+        return { ...prev, wardrobe: newWardrobe };
+      });
+      throw error;
+    }
+  }, [setUser]);
+
   const getByCategory = useCallback((category: string) => {
     return items.filter(item => item.category === category);
   }, [items]);
@@ -141,10 +168,12 @@ export const useWardrobe = () => {
     update,
     remove,
     markWorn,
+    archive,
     getByCategory,
     getById,
     count: items.length,
   };
+
 };
 
 export default useWardrobe;
