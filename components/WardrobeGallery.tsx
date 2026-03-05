@@ -10,7 +10,7 @@ import { useToast } from '../src/context/ToastContext';
 import { aiApi } from '../services/api';
 import ImageRenderer from './ImageRenderer';
 import BrandSelect from '../src/components/BrandSelect';
-import { Camera, Plus, X, Trash2, Search, ChevronDown, Loader2 } from 'lucide-react';
+import { Camera, Plus, X, Trash2, Search, ChevronDown, Loader2, Scissors } from 'lucide-react';
 
 const COMMON_TAGS = ["休闲", "商务", "运动", "复古", "极简", "约会", "度假", "春", "夏", "秋", "冬"];
 
@@ -66,6 +66,8 @@ const WardrobeGallery: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingItem, setEditingItem] = useState<string>('');
   const [analyzing, setAnalyzing] = useState(false);
+  const [bgRemoving, setBgRemoving] = useState(false);
+  const [originalPreview, setOriginalPreview] = useState<string>(''); // 保留原图
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('全部');
   const [previewFront, setPreviewFront] = useState<string>('');
@@ -86,6 +88,32 @@ const WardrobeGallery: React.FC = () => {
     });
   };
 
+  /** 自动抗图 —— 延迟加载包，避免首屏初始化时下载模型 */
+  const handleRemoveBg = async () => {
+    if (!previewFront) return;
+    setBgRemoving(true);
+    try {
+      const { removeBackground } = await import('@imgly/background-removal');
+      // 将 base64 转为 Blob
+      const res = await fetch(previewFront);
+      const blob = await res.blob();
+      const resultBlob = await removeBackground(blob, {
+        model: 'isnet_quint8', // 量化模型，体积最小速度最快
+        output: { format: 'image/png' },
+      });
+      const url = URL.createObjectURL(resultBlob);
+      // 将抗图结果转为 base64（方便后续保存逻辑一致）
+      const reader = new FileReader();
+      reader.onloadend = () => { setPreviewFront(reader.result as string); };
+      reader.readAsDataURL(resultBlob);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('抗图失败:', e);
+      showError('抗图处理失败，请重试');
+    } finally {
+      setBgRemoving(false);
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -266,8 +294,8 @@ const WardrobeGallery: React.FC = () => {
             key={cat}
             onClick={() => setActiveCategory(cat)}
             className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${activeCategory === cat
-                ? 'bg-gradient-to-r from-rose-500 to-indigo-500 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              ? 'bg-gradient-to-r from-rose-500 to-indigo-500 text-white shadow-sm'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
           >
             {cat}
@@ -416,7 +444,7 @@ const WardrobeGallery: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700">照片 *</label>
                   <div className="aspect-[3/4] bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
                     {previewFront ? (
-                      <img src={previewFront} alt="服装照片" className="w-full h-full object-cover" />
+                      <img src={previewFront} alt="服装照片" className="w-full h-full object-cover" style={{ background: 'repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 0 0 / 16px 16px' }} />
                     ) : (
                       <>
                         <Camera size={24} className="text-slate-400 mb-2" />
@@ -430,6 +458,22 @@ const WardrobeGallery: React.FC = () => {
                       className="absolute inset-0 opacity-0 cursor-pointer"
                     />
                   </div>
+
+                  {/* 抠图按钮：上传图片后显示 */}
+                  {previewFront && !analyzing && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveBg}
+                      disabled={bgRemoving}
+                      className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-indigo-200 text-indigo-600 text-sm font-medium bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {bgRemoving ? (
+                        <><Loader2 size={14} className="animate-spin" />抠图中（首次需下载模型约5-10秒）...</>
+                      ) : (
+                        <><Scissors size={14} />自动抠图（去除背景）</>
+                      )}
+                    </button>
+                  )}
                 </div>
 
                 {/* AI Analyzing */}
@@ -439,6 +483,7 @@ const WardrobeGallery: React.FC = () => {
                     <span>AI 分析中...</span>
                   </div>
                 )}
+
 
                 {/* Basic Info */}
                 <div className="space-y-3">
