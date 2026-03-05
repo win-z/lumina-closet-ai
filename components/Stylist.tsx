@@ -27,9 +27,22 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({ c
   return (
     <div className={`space-y-1 ${className}`}>
       {lines.map((line, i) => {
+        const trimmed = line.trim();
+
+        // 处理标题行（去掉 # 符号，渲染为加粗文字）
+        if (trimmed.startsWith('### ')) {
+          return <p key={i} className="font-bold text-indigo-900 mt-2">{trimmed.replace(/^###\s*/, '')}</p>;
+        }
+        if (trimmed.startsWith('## ')) {
+          return <p key={i} className="font-extrabold text-indigo-900 text-base mt-2">{trimmed.replace(/^##\s*/, '')}</p>;
+        }
+        if (trimmed.startsWith('# ')) {
+          return <p key={i} className="font-extrabold text-indigo-900 text-lg mt-2">{trimmed.replace(/^#\s*/, '')}</p>;
+        }
+
         // 处理列表项
-        const isListItem = line.trim().startsWith('- ') || line.trim().startsWith('* ');
-        const cleanLine = isListItem ? line.trim().substring(2) : line;
+        const isListItem = trimmed.startsWith('- ') || trimmed.startsWith('* ');
+        const cleanLine = isListItem ? trimmed.substring(2) : line;
 
         // 处理加粗 **text**
         const parts = cleanLine.split(/(\*\*.*?\*\*)/g);
@@ -53,7 +66,7 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({ c
           );
         }
 
-        return <p key={i} className={line.trim() === '' ? 'h-1' : ''}>{renderedLine}</p>;
+        return <p key={i} className={trimmed === '' ? 'h-1' : ''}>{renderedLine}</p>;
       })}
     </div>
   );

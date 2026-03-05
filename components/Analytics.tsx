@@ -18,9 +18,25 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({ c
   return (
     <div className={`space-y-1.5 ${className}`}>
       {lines.map((line, i) => {
+        const trimmed = line.trim();
+
+        // 处理标题行 ## / ###（去掉 # 符号，渲染为加粗文字）
+        if (trimmed.startsWith('### ')) {
+          const headingText = trimmed.replace(/^###\s*/, '');
+          return <p key={i} className="font-bold text-slate-800 mt-2">{headingText}</p>;
+        }
+        if (trimmed.startsWith('## ')) {
+          const headingText = trimmed.replace(/^##\s*/, '');
+          return <p key={i} className="font-extrabold text-slate-900 text-base mt-2">{headingText}</p>;
+        }
+        if (trimmed.startsWith('# ')) {
+          const headingText = trimmed.replace(/^#\s*/, '');
+          return <p key={i} className="font-extrabold text-slate-900 text-lg mt-2">{headingText}</p>;
+        }
+
         // 处理列表项
-        const isListItem = line.trim().startsWith('- ') || line.trim().startsWith('* ');
-        const cleanLine = isListItem ? line.trim().substring(2) : line;
+        const isListItem = trimmed.startsWith('- ') || trimmed.startsWith('* ');
+        const cleanLine = isListItem ? trimmed.substring(2) : line;
 
         // 处理加粗 **text**
         const parts = cleanLine.split(/(\*\*.*?\*\*)/g);
@@ -44,7 +60,7 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({ c
           );
         }
 
-        return <p key={i} className={line.trim() === '' ? 'h-2' : ''}>{renderedLine}</p>;
+        return <p key={i} className={trimmed === '' ? 'h-2' : ''}>{renderedLine}</p>;
       })}
     </div>
   );
@@ -709,7 +725,9 @@ const Analytics: React.FC = () => {
               ) : (
                 analysis.aiAnalysis.split('###').filter(s => s.trim()).map((section, idx) => {
                   const lines = section.trim().split('\n');
-                  const title = lines[0].replace('💡', '').trim();
+                  const rawTitle = lines[0].trim();
+                  // 去掉 Markdown 标题符号（#/##/###）、emoji 以及多余空格
+                  const title = rawTitle.replace(/^#+\s*/, '').replace(/^💡\s*/, '').trim();
                   const content = lines.slice(1).join('\n').trim();
 
                   // 简单的结构化映射
