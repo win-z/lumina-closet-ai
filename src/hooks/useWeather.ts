@@ -72,35 +72,69 @@ export interface UseWeatherReturn {
     refresh: () => void;
 }
 
+/** IP 定位兜底：用 ip-api.com 获取大致经纬度（免费无 Key，无需授权） */
+async function fetchWeatherByIp(): Promise<WeatherData> {
+    const ipRes = await fetch('http://ip-api.com/json/?fields=lat,lon,city&lang=zh-CN');
+    if (!ipRes.ok) throw new Error('IP定位失败');
+    const ipData = await ipRes.json();
+    const { lat, lon, city } = ipData;
+    const data = await fetchWeather(lat, lon);
+    // ip-api 已返回中文城市名，直接覆盖
+    if (city) {
+        data.city = city;
+        data.summaryText = `${data.description}, ${data.temperature}°C, ${city}`;
+    }
+    return data;
+}
+
 export function useWeather(): UseWeatherReturn {
     const [weather, setWeather] = useState<WeatherData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchAndSet = () => {
-        if (!navigator.geolocation) {
-            setError('浏览器不支持定位');
-            return;
-        }
         setLoading(true);
         setError(null);
-        navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-                try {
-                    const data = await fetchWeather(pos.coords.latitude, pos.coords.longitude);
-                    setWeather(data);
-                } catch (e: any) {
-                    setError(e?.message || '天气获取失败');
-                } finally {
-                    setLoading(false);
-                }
-            },
-            (err) => {
-                setError(err.code === 1 ? '定位已拒绝，请手动输入天气' : '定位失败');
-                setLoading(false);
-            },
-            { timeout: 8000, maximumAge: 5 * 60 * 1000 }
-        );
+
+        // 优先使用精确 GPS 定位
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    try {
+                        const data = await fetchWeather(pos.coords.latitude, pos.coords.longitude);
+                        setWeather(data);
+                    } catch (e: any) {
+                        // GPS 天气获取失败 → 降级 IP 定位
+                        try {
+                            const data = await fetchWeatherByIp();
+                            setWeather(data);
+                        } catch {
+                            setError('天气获取失败，请手动输入');
+                        }
+                    } finally {
+                        setLoading(false);
+                    }
+                },
+                async () => {
+                    // 定位被拒绝或超时 → 自动降级到 IP 定位
+                    try {
+                        const data = await fetchWeatherByIp();
+                        setWeather(data);
+                    } catch {
+                        setError('天气获取失败，请手动输入');
+                    } finally {
+                        setLoading(false);
+                    }
+                },
+                { timeout: 6000, maximumAge: 5 * 60 * 1000 }
+            );
+        } else {
+            // 浏览器不支持 GPS → 直接 IP 定位
+            fetchWeatherByIp()
+                .then(setWeather)
+                .catch(() => setError('天气获取失败，请手动输入'))
+                .finally(() => setLoading(false));
+        }
     };
 
     useEffect(() => {
@@ -109,3 +143,4 @@ export function useWeather(): UseWeatherReturn {
 
     return { weather, loading, error, refresh: fetchAndSet };
 }
+
