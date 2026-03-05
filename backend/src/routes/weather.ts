@@ -58,19 +58,35 @@ async function fetchIpLocation(ip: string): Promise<{ lat: number; lon: number; 
     const localIps = ['127.0.0.1', '::1', 'localhost'];
     const isLocal = localIps.includes(ip) || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.');
     const targetIp = isLocal ? '' : ip;
-    // 同时取 city（可能是小地名如"河庄"）和 regionName（省份如"浙江省"）
-    const url = `http://ip-api.com/json/${targetIp}?fields=lat,lon,city,regionName&lang=zh-CN`;
+    const url = `http://ip-api.com/json/${targetIp}?fields=lat,lon,regionName&lang=zh-CN`;
     const data = await serverFetch(url);
     if (!data.lat) throw new Error('IP定位失败');
 
-    // 若 city 不以常见城市后缀结尾（市/州/县/盟/区），说明是小地名，改用省份名
-    const city: string = data.city || '';
+    const { lat, lon } = data;
     const regionName: string = data.regionName || '';
-    const CITY_SUFFIXES = ['市', '州', '县', '盟', '特区', '区'];
-    const isMajorCity = CITY_SUFFIXES.some(s => city.endsWith(s));
-    const displayCity = isMajorCity ? city : regionName;
 
-    return { lat: data.lat, lon: data.lon, city: displayCity };
+    // 用 Nominatim 反地理编码获取准确的地级市名称（服务端调用，绕过浏览器限制）
+    let city = regionName; // 省份名作为兜底
+    try {
+        const geoRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=zh&zoom=10`,
+            {
+                headers: { 'User-Agent': 'LuminaClosetBackend/1.0' },
+                signal: AbortSignal.timeout(5000),
+            }
+        );
+        if (geoRes.ok) {
+            const geoData = await geoRes.json() as any;
+            const addr = geoData.address || {};
+            // Nominatim 对中国城市返回 city（如"杭州市"）或 county（如"萧山区"）
+            const found = addr.city || addr.county || addr.town || addr.municipality;
+            if (found) city = found;
+        }
+    } catch {
+        // Nominatim 失败降级：使用省份名
+    }
+
+    return { lat, lon, city };
 }
 
 
