@@ -447,18 +447,26 @@ const WardrobeGallery: React.FC = () => {
       {/* Upload Modal */}
       {
         isUploading && (
-          <div className="fixed inset-0 z-[200] flex items-start justify-center">
+          <div className="fixed inset-0 z-[200] flex items-end justify-center">
             {/* 遮罩背景 */}
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {
-              setIsUploading(false);
-              setIsEditing(false);
-              setEditingItem('');
-            }} />
-            {/* 弹窗内容 - 严格限制在上下菜单之间 */}
-            <div className="relative w-full max-w-[calc(393px-32px)] mx-4 mt-[72px] mb-[88px] max-h-[calc(100dvh-160px)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"
+              onClick={() => {
+                setIsUploading(false);
+                setIsEditing(false);
+                setEditingItem('');
+              }}
+            />
+            {/* 弹窗内容 - Bottom Sheet 样式 */}
+            <div className="relative w-full max-w-md bg-white rounded-t-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] animate-slide-up">
+              {/* Handle - 拖拽条视觉效果 */}
+              <div className="flex justify-center pt-3 pb-1 shrink-0">
+                <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+              </div>
+
               {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-slate-100">
-                <h3 className="text-lg font-semibold text-slate-800">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50">
+                <h3 className="text-xl font-bold text-slate-800">
                   {editingItem ? '编辑单品' : '添加新单品'}
                 </h3>
                 <button
@@ -467,23 +475,25 @@ const WardrobeGallery: React.FC = () => {
                     setIsEditing(false);
                     setEditingItem('');
                   }}
-                  className="p-2 text-slate-400 hover:text-slate-600"
+                  className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              <div className="px-6 py-4 space-y-5 overflow-y-auto flex-1 no-scrollbar">
                 {/* Image Upload */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">照片 *</label>
-                  <div className="aspect-[3/4] bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
+                  <label className="block text-sm font-semibold text-slate-700">照片 *</label>
+                  <div className="aspect-[3/4] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center relative overflow-hidden group">
                     {previewFront ? (
-                      <img src={previewFront} alt="服装照片" className="w-full h-full object-cover" style={{ background: 'repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 0 0 / 16px 16px' }} />
+                      <img src={previewFront} alt="服装照片" className="w-full h-full object-cover" style={{ background: 'repeating-conic-gradient(#f8fafc 0% 25%, #fff 0% 50%) 0 0 / 16px 16px' }} />
                     ) : (
                       <>
-                        <Camera size={24} className="text-slate-400 mb-2" />
-                        <span className="text-sm text-slate-400">点击上传</span>
+                        <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                          <Camera size={24} className="text-indigo-500" />
+                        </div>
+                        <span className="text-sm font-medium text-indigo-400">点击上传单品正面照</span>
                       </>
                     )}
                     <input
@@ -495,11 +505,11 @@ const WardrobeGallery: React.FC = () => {
                     />
                     {/* 抠图中：图片上的遮罩 loading */}
                     {bgRemoving && (
-                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-3 z-10">
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 z-10 animate-fade-in">
                         <Loader2 size={36} className="animate-spin text-white" />
                         <div className="text-center text-white px-4">
-                          <p className="font-semibold text-sm">正在去除背景...</p>
-                          <p className="text-xs text-white/70 mt-1">首次使用需下载模型，请耐心等待</p>
+                          <p className="font-semibold text-sm">正在智能抠图...</p>
+                          <p className="text-[10px] text-white/70 mt-1">首次运行较慢，正在处理细节</p>
                         </div>
                       </div>
                     )}
@@ -510,9 +520,9 @@ const WardrobeGallery: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleRemoveBg}
-                      className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-indigo-200 text-indigo-600 text-sm font-medium bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all"
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-indigo-100 text-indigo-600 text-sm font-bold bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all shadow-sm"
                     >
-                      <Scissors size={14} />自动抠图（去除背景）
+                      <Scissors size={14} />智能抠图 · 完美去背
                     </button>
                   )}
                 </div>
@@ -520,33 +530,33 @@ const WardrobeGallery: React.FC = () => {
 
                 {/* AI Analyzing */}
                 {analyzing && (
-                  <div className="flex items-center gap-2 text-indigo-500 text-sm">
+                  <div className="flex items-center justify-center gap-3 py-2 text-indigo-500 text-sm font-semibold bg-indigo-50 rounded-xl animate-pulse">
                     <Loader2 size={16} className="animate-spin" />
-                    <span>AI 分析中...</span>
+                    <span>AI 正在识别单品属性...</span>
                   </div>
                 )}
 
 
                 {/* Basic Info */}
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">名称 *</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">名称 *</label>
                     <input
                       type="text"
                       value={newItem.name || ''}
                       onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
                       placeholder="例如：白色T恤"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                      className="w-full px-4 py-3 bg-slate-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">类别</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">类别</label>
                       <select
                         value={newItem.category}
                         onChange={(e) => setNewItem(prev => ({ ...prev, category: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                        className="w-full px-4 py-3 bg-slate-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium appearance-none"
                       >
                         {Object.values(ClothingCategory).map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
@@ -554,21 +564,21 @@ const WardrobeGallery: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">颜色</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">颜色建议</label>
                       <input
                         type="text"
                         value={newItem.color || ''}
                         onChange={(e) => setNewItem(prev => ({ ...prev, color: e.target.value }))}
                         placeholder="例如：白色"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                        className="w-full px-4 py-3 bg-slate-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
                       />
                     </div>
                   </div>
 
                   {/* 品牌和价格 */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">品牌</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">品牌</label>
                       <BrandSelect
                         value={newItem.brand || ''}
                         onChange={(brand) => setNewItem(prev => ({ ...prev, brand }))}
@@ -576,7 +586,7 @@ const WardrobeGallery: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">价格 (¥)</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">价格 (¥)</label>
                       <input
                         type="number"
                         value={newItem.price || ''}
@@ -584,47 +594,47 @@ const WardrobeGallery: React.FC = () => {
                         placeholder="例如：299"
                         min="0"
                         step="1"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                        className="w-full px-4 py-3 bg-slate-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
                       />
                     </div>
                   </div>
 
                   {/* 购买日期 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">购买日期</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">购买日期</label>
                     <input
                       type="date"
                       value={newItem.purchaseDate || ''}
                       onChange={(e) => setNewItem(prev => ({ ...prev, purchaseDate: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm"
+                      className="w-full px-4 py-3 bg-slate-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium text-sm"
                     />
                   </div>
                 </div>
 
                 {/* Tags */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">标签</label>
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-slate-700">标签 (场景/季节)</label>
                   <div className="flex flex-wrap gap-2">
                     {COMMON_TAGS.map(tag => (
                       <button
                         key={tag}
                         onClick={() => toggleTag(tag)}
-                        className={`px-3 py-1 rounded-full text-sm transition-colors ${newItem.tags?.includes(tag)
-                          ? 'bg-indigo-500 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${newItem.tags?.includes(tag)
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                           }`}
                       >
                         {tag}
                       </button>
                     ))}
                   </div>
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex gap-2">
                     <input
                       type="text"
                       value={customTagInput}
                       onChange={(e) => setCustomTagInput(e.target.value)}
                       placeholder="自定义标签"
-                      className="flex-1 px-3 py-1 border border-slate-200 rounded-lg text-sm focus:border-indigo-500 outline-none"
+                      className="flex-1 px-4 py-2 bg-slate-50 border border-transparent rounded-xl text-sm outline-none focus:bg-white focus:border-indigo-300 transition-all"
                       onKeyPress={(e) => {
                         if (e.key === 'Enter' && customTagInput.trim()) {
                           toggleTag(customTagInput.trim());
@@ -639,7 +649,7 @@ const WardrobeGallery: React.FC = () => {
                           setCustomTagInput('');
                         }
                       }}
-                      className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-sm hover:bg-slate-200"
+                      className="px-4 py-2 bg-indigo-50 text-indigo-600 font-bold rounded-xl text-xs hover:bg-indigo-100 transition-colors"
                     >
                       添加
                     </button>
@@ -647,13 +657,13 @@ const WardrobeGallery: React.FC = () => {
                 </div>
 
                 {/* Submit */}
-                <div className="pt-4 pb-20 space-y-3">
+                <div className="pt-6 pb-8 flex flex-col gap-3">
                   <button
                     onClick={saveItem}
                     disabled={analyzing || !previewFront || !newItem.name}
-                    className="w-full py-3 bg-gradient-to-r from-rose-500 to-indigo-500 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black shadow-xl shadow-slate-200 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {analyzing ? '处理中...' : (editingItem ? '保存更改' : '确认入库')}
+                    {analyzing ? 'AI 处理中...' : (editingItem ? '保存修改' : '确认入库')}
                   </button>
                   <button
                     onClick={() => {
@@ -663,7 +673,7 @@ const WardrobeGallery: React.FC = () => {
                       setPreviewFront('');
                       setNewItem({ category: ClothingCategory.TOP, tags: [] });
                     }}
-                    className="w-full py-3 bg-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-300 transition-all"
+                    className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-bold hover:bg-slate-200 transition-all"
                   >
                     取消
                   </button>

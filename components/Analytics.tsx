@@ -850,8 +850,12 @@ const Analytics: React.FC = () => {
       {/* AI 深度分析弹窗 */}
       {isAiModalOpen && analysis?.aiAnalysis && (
         <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsAiModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsAiModalOpen(false)} />
           <div className="relative w-full max-w-lg bg-slate-50 rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up">
+            {/* Handle - 拖拽条视觉效果 */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0 bg-white sm:hidden">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            </div>
             {/* Modal Header */}
             <div className="p-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
@@ -872,7 +876,7 @@ const Analytics: React.FC = () => {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto space-y-6 pb-12">
+            <div className="p-6 overflow-y-auto space-y-6 pb-12 no-scrollbar scroll-smooth">
               {analysis.aiAnalysis.startsWith('{') ? (
                 <div className="text-center py-10 space-y-4">
                   <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full mx-auto flex items-center justify-center">

@@ -21,6 +21,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt = '图片', isOpen, 
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showControls, setShowControls] = useState(true);
   const [showDownloadHint, setShowDownloadHint] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartTimeRef = useRef<number>(0);
   const { showError } = useToast();
@@ -31,6 +32,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt = '图片', isOpen, 
       setScale(1);
       setPosition({ x: 0, y: 0 });
       setShowControls(true);
+      setIsClosing(false);
     }
   }, [isOpen]);
 
@@ -45,7 +47,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt = '图片', isOpen, 
 
   // 处理关闭
   const handleClose = useCallback(() => {
-    onClose();
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+    }, 200);
   }, [onClose]);
 
   // 处理图片点击（切换控制栏）
@@ -100,7 +105,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt = '图片', isOpen, 
     if (e.touches.length === 1) {
       const touch = e.touches[0];
       touchStartTimeRef.current = Date.now();
-      
+
       // 长按检测（500ms）
       longPressTimerRef.current = setTimeout(() => {
         setShowDownloadHint(true);
@@ -164,34 +169,37 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt = '图片', isOpen, 
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center overflow-hidden"
+    <div
+      className={`fixed inset-0 bg-black/95 z-[200] flex items-center justify-center overflow-hidden ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
       onClick={handleClose}
       onWheel={handleWheel}
     >
       {/* 控制栏 */}
       {showControls && (
-        <div className="fixed top-0 left-0 right-0 p-4 flex justify-between items-center z-10 bg-gradient-to-b from-black/50 to-transparent">
+        <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-10 bg-gradient-to-b from-black/60 to-transparent animate-fade-in">
           <button
             onClick={handleClose}
-            className="p-2 bg-black/30 backdrop-blur-sm rounded-full text-white hover:bg-black/50 transition-colors"
+            className="w-10 h-10 bg-white/10 backdrop-blur-md rounded-full text-white flex items-center justify-center hover:bg-white/20 transition-all active:scale-90"
           >
             <X size={24} />
           </button>
           <button
             onClick={handleDownload}
-            className="p-2 bg-black/30 backdrop-blur-sm rounded-full text-white hover:bg-black/50 transition-colors flex items-center gap-2 px-4"
+            className="h-10 bg-white/10 backdrop-blur-md rounded-full text-white flex items-center gap-2 px-5 hover:bg-white/20 transition-all active:scale-95"
           >
             <Download size={20} />
-            <span className="text-sm">下载</span>
+            <span className="text-sm font-medium">保存</span>
           </button>
         </div>
       )}
 
       {/* 长按提示 */}
       {showDownloadHint && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-sm text-slate-800 z-20 shadow-lg">
-          长按图片可下载
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/10 backdrop-blur-xl border border-white/20 text-white px-8 py-5 rounded-[2rem] flex flex-col items-center gap-3 animate-fade-in z-50 pointer-events-none">
+          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+            <Download size={28} className="text-white" />
+          </div>
+          <span className="text-sm font-bold tracking-wide">已触发下载</span>
         </div>
       )}
 
@@ -205,10 +213,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt = '图片', isOpen, 
         <img
           src={src}
           alt={alt}
-          className="max-w-full max-h-full object-contain transition-transform duration-100 select-none"
+          className="max-w-full max-h-full object-contain select-none shadow-2xl"
           style={{
             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-            cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+            cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+            transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
           onClick={handleImageClick}
           onDoubleClick={handleDoubleClick}
@@ -221,16 +230,17 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt = '图片', isOpen, 
       </div>
 
       {/* 底部提示 */}
-      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 text-white/60 text-sm text-center">
-        <p>双击放大 · 滚轮缩放 · 长按下载</p>
-      </div>
-
-      {/* 缩放比例指示器 */}
-      {scale !== 1 && (
-        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-black/50 backdrop-blur-sm px-3 py-1 rounded-full text-white text-sm">
-          {Math.round(scale * 100)}%
+      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 animate-fade-in pointer-events-none">
+        {/* 缩放比例指示器 */}
+        {scale !== 1 && (
+          <div className="bg-black/40 backdrop-blur-md border border-white/10 px-4 py-1 rounded-full text-white text-xs font-bold">
+            {Math.round(scale * 100)}%
+          </div>
+        )}
+        <div className="bg-white/10 backdrop-blur-md border border-white/10 text-white/50 px-5 py-2 rounded-2xl text-[10px] sm:text-xs">
+          双击放大 · 滚轮缩放 · 拖拽移动
         </div>
-      )}
+      </div>
     </div>
   );
 };

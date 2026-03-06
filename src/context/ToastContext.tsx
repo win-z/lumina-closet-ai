@@ -104,16 +104,14 @@ const ConfirmDialog: React.FC<{
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-      <div 
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"
         onClick={handleCancel}
       />
       <div className={`
         relative w-full max-w-[320px] 
         bg-white rounded-3xl shadow-2xl
-        transform transition-all duration-300 ease-out
-        scale-100 opacity-100
-        overflow-hidden
+        overflow-hidden animate-scale-in
       `}>
         <div className={`h-1.5 w-full ${dialog.type === 'danger' ? 'bg-rose-500' : dialog.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
         <div className="p-6 flex flex-col items-center text-center">
@@ -162,7 +160,7 @@ const ToastItem: React.FC<{
       const now = Date.now();
       const remaining = Math.max(0, endTime - now);
       const newProgress = (remaining / duration) * 100;
-      
+
       progressRef.current = newProgress;
       setProgress(newProgress);
 
@@ -218,12 +216,12 @@ const ToastItem: React.FC<{
     >
       {/* 图标 */}
       <ToastIcon type={toast.type} />
-      
+
       {/* 消息内容 */}
       <p className="flex-1 text-sm font-medium text-slate-700 leading-relaxed">
         {toast.message}
       </p>
-      
+
       {/* 关闭按钮 */}
       <button
         onClick={handleClose}
@@ -233,15 +231,15 @@ const ToastItem: React.FC<{
       </button>
 
       {/* 底部进度条 */}
-      <div 
+      <div
         className={`
           absolute bottom-0 left-0 h-0.5 rounded-full
           ${progressColors[toast.type]}
           transition-all ease-linear
         `}
-        style={{ 
+        style={{
           width: `${progress}%`,
-          opacity: 0.6 
+          opacity: 0.6
         }}
       />
     </div>
@@ -258,8 +256,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     confirmText: '确定',
     cancelText: '取消',
     type: 'warning',
-    onConfirm: () => {},
-    onCancel: () => {},
+    onConfirm: () => { },
+    onCancel: () => { },
   });
 
   const removeToast = useCallback((id: string) => {
@@ -332,13 +330,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       {children}
       <ConfirmDialog dialog={confirmDialog} onClose={closeConfirmDialog} />
       {/* Toast 容器 - 固定在屏幕上方，考虑移动端安全区域 */}
-      <div 
+      <div
         className="fixed top-0 left-0 right-0 z-[9999] flex flex-col items-center gap-2 pointer-events-none"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}
       >
         <div className="w-full max-w-[393px] mx-auto px-4 flex flex-col items-center gap-2">
           {toasts.map((toast, index) => (
-            <div 
+            <div
               key={toast.id}
               className="pointer-events-auto"
               style={{
@@ -350,7 +348,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           ))}
         </div>
       </div>
-      
+
       {/* CSS 动画 */}
       <style>{`
         @keyframes toastSlideIn {
