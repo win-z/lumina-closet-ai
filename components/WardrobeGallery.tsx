@@ -447,7 +447,9 @@ const WardrobeGallery: React.FC = () => {
       {/* Upload Modal */}
       {
         isUploading && (
-          <div className="fixed inset-0 z-[200] flex items-end justify-center">
+          <div className="fixed inset-0 z-[200] flex items-end justify-center pb-20"
+            onTouchMove={(e) => e.stopPropagation()}
+          >
             {/* 遮罩背景 */}
             <div
               className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"
@@ -458,7 +460,7 @@ const WardrobeGallery: React.FC = () => {
               }}
             />
             {/* 弹窗内容 - Bottom Sheet 样式 */}
-            <div className="relative w-full max-w-md bg-white rounded-t-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] animate-slide-up">
+            <div className="relative w-full max-w-md bg-white rounded-t-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[calc(90dvh-5rem)] animate-slide-up">
               {/* Handle - 拖拽条视觉效果 */}
               <div className="flex justify-center pt-3 pb-1 shrink-0">
                 <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
@@ -481,7 +483,7 @@ const WardrobeGallery: React.FC = () => {
                 </button>
               </div>
 
-              <div className="px-6 py-4 space-y-5 overflow-y-auto flex-1 no-scrollbar">
+              <div className="px-6 py-4 space-y-5 overflow-y-auto overscroll-contain flex-1 no-scrollbar">
                 {/* Image Upload */}
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-slate-700">照片 *</label>

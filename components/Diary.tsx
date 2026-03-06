@@ -442,12 +442,14 @@ const Diary: React.FC = () => {
 
       {/* 日记弹窗 */}
       {isModalOpen && selectedDate && (
-        <div className="fixed inset-0 z-[9999] flex items-end justify-center">
+        <div className="fixed inset-0 z-[9999] flex items-end justify-center pb-20"
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
             onClick={() => setIsModalOpen(false)}
           />
-          <div className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up">
+          <div className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl overflow-hidden max-h-[calc(90dvh-5rem)] flex flex-col animate-slide-up">
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1 shrink-0">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
@@ -492,7 +494,7 @@ const Diary: React.FC = () => {
             </div>
 
             {/* 弹窗内容 */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
               {isEditing ? (
                 // 编辑模式
                 <>
@@ -745,12 +747,14 @@ const Diary: React.FC = () => {
 
       {/* 搭配选择器弹窗 */}
       {showOutfitSelector && (
-        <div className="fixed inset-0 z-[99999] flex items-end justify-center">
+        <div className="fixed inset-0 z-[99999] flex items-end justify-center pb-20"
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
             onClick={() => setShowOutfitSelector(false)}
           />
-          <div className="relative w-full max-w-md bg-white rounded-t-[2rem] shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up">
+          <div className="relative w-full max-w-md bg-white rounded-t-[2rem] shadow-2xl overflow-hidden max-h-[calc(90dvh-5rem)] flex flex-col animate-slide-up">
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1 shrink-0">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
@@ -765,7 +769,7 @@ const Diary: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4">
               {loadingOutfits ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />

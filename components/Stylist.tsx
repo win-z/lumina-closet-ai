@@ -1148,7 +1148,9 @@ const Stylist: React.FC = () => {
 
           {/* 编辑搭配弹窗 */}
           {editingOutfit && (
-            <div className="fixed inset-0 z-[200] flex items-end justify-center">
+            <div className="fixed inset-0 z-[200] flex items-end justify-center pb-20"
+              onTouchMove={(e) => e.stopPropagation()}
+            >
               {/* 遮罩背景 */}
               <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => {
                 setEditingOutfit(null);
@@ -1156,7 +1158,7 @@ const Stylist: React.FC = () => {
                 setCustomTags([]);
               }} />
               {/* 弹窗内容 - Bottom Sheet */}
-              <div className="relative w-full max-w-md bg-white rounded-t-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] animate-slide-up">
+              <div className="relative w-full max-w-md bg-white rounded-t-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[calc(90dvh-5rem)] animate-slide-up">
                 {/* Handle */}
                 <div className="flex justify-center pt-3 pb-1 shrink-0">
                   <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
