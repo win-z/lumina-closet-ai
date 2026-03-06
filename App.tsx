@@ -111,7 +111,7 @@ const AppContent: React.FC = () => {
         </div>
 
         {/* Views */}
-        <div className="animate-fade-in flex-1 overflow-y-auto no-scrollbar pb-24">
+        <div className="animate-fade-in flex-1 overflow-y-auto overflow-x-hidden no-scrollbar pb-24">
           {view === 'wardrobe' && user && (
             <WardrobeGallery />
           )}

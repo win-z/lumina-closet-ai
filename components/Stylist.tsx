@@ -1148,16 +1148,20 @@ const Stylist: React.FC = () => {
 
           {/* 编辑搭配弹窗 */}
           {editingOutfit && (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[200] flex items-end justify-center">
               {/* 遮罩背景 */}
-              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => {
                 setEditingOutfit(null);
                 setCustomName('');
                 setCustomTags([]);
               }} />
-              {/* 弹窗内容 */}
-              <div className="relative w-full max-w-sm max-h-[80vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between p-4 border-b border-slate-100 shrink-0">
+              {/* 弹窗内容 - Bottom Sheet */}
+              <div className="relative w-full max-w-md bg-white rounded-t-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] animate-slide-up">
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1 shrink-0">
+                  <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+                </div>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
                   <h3 className="text-lg font-semibold text-slate-800">编辑搭配</h3>
                   <button
                     onClick={() => {
@@ -1165,9 +1169,9 @@ const Stylist: React.FC = () => {
                       setCustomName('');
                       setCustomTags([]);
                     }}
-                    className="p-2 text-slate-400 hover:text-slate-600"
+                    className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors"
                   >
-                    <X size={20} />
+                    <X size={18} />
                   </button>
                 </div>
                 <div className="p-4 space-y-4 overflow-y-auto flex-1">

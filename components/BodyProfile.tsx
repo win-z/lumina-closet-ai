@@ -164,7 +164,7 @@ const BodyProfile: React.FC = () => {
             className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
             onClick={() => setIsNameModalOpen(false)}
           />
-          <div className="relative w-full max-w-[320px] bg-white rounded-2xl shadow-2xl p-6 space-y-4 animate-scale-up">
+          <div className="relative w-full max-w-[320px] bg-white rounded-2xl shadow-2xl p-6 space-y-4 animate-scale-in">
             <h4 className="text-lg font-bold text-slate-800">修改昵称</h4>
             <input
               type="text"

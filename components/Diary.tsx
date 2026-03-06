@@ -442,12 +442,16 @@ const Diary: React.FC = () => {
 
       {/* 日记弹窗 */}
       {isModalOpen && selectedDate && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-end justify-center">
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
             onClick={() => setIsModalOpen(false)}
           />
-          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[80vh] flex flex-col">
+          <div className="relative w-full max-w-lg bg-white rounded-t-[2rem] shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up">
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            </div>
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
               <div>
@@ -741,12 +745,16 @@ const Diary: React.FC = () => {
 
       {/* 搭配选择器弹窗 */}
       {showOutfitSelector && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[99999] flex items-end justify-center">
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
             onClick={() => setShowOutfitSelector(false)}
           />
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[80vh] flex flex-col">
+          <div className="relative w-full max-w-md bg-white rounded-t-[2rem] shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up">
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            </div>
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-800">选择搭配</h3>
               <button
