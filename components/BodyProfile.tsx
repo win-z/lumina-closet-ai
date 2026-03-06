@@ -9,11 +9,13 @@ declare const __APP_VERSION__: string;
 import React, { useState } from 'react';
 import { useProfile } from '../src/hooks/useProfile';
 import { useToast } from '../src/context/ToastContext';
+import { useApp } from '../src/context/AppContext';
 import ImageRenderer from './ImageRenderer';
-import { Camera, User, Ruler, Edit, Info } from 'lucide-react';
+import { Camera, User, Ruler, Edit, Info, LogIn } from 'lucide-react';
 
 const BodyProfile: React.FC = () => {
   const { profile, update, isLoggedIn } = useProfile();
+  const { logout } = useApp();
   const { showError, showSuccess } = useToast();
   const [activeTab, setActiveTab] = useState<'details' | 'scan'>('details');
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
@@ -49,9 +51,19 @@ const BodyProfile: React.FC = () => {
 
   return (
     <div className="p-4 pb-28 space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <h2 className="text-2xl font-bold font-serif text-slate-800">身体档案</h2>
-        <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded text-xs font-bold uppercase">Profile</span>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold font-serif text-slate-800">身体档案</h2>
+          <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded text-xs font-bold uppercase">Profile</span>
+        </div>
+        <button
+          onClick={logout}
+          className="p-2 text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1 text-sm font-medium"
+          title="退出登录"
+        >
+          <span>退出登录</span>
+          <LogIn size={18} className="rotate-180" />
+        </button>
       </div>
 
       {/* Profile Content */}

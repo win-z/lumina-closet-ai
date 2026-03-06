@@ -93,22 +93,7 @@ const AppContent: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-slate-50 to-indigo-50 text-slate-900 font-sans selection:bg-rose-200">
       <main className="w-full max-w-md mx-auto min-h-screen bg-white shadow-2xl relative border-x border-slate-100 flex flex-col">
 
-        {/* 顶部用户信息 */}
-        <div className="sticky top-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-lg border-b border-slate-100 flex justify-between items-center z-50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-rose-500 to-indigo-500 flex items-center justify-center text-white text-xs font-medium">
-              {user?.profile?.name?.[0] || 'U'}
-            </div>
-            <span className="text-sm font-medium text-slate-600">{user?.profile?.name || '用户'}</span>
-          </div>
-          <button
-            onClick={logout}
-            className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
-            title="退出登录"
-          >
-            <LogIn size={18} className="rotate-180" />
-          </button>
-        </div>
+
 
         {/* Views */}
         <div className="animate-fade-in flex-1 overflow-y-auto overflow-x-hidden no-scrollbar pb-24">
